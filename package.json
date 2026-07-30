@@ -1,0 +1,59 @@
+{
+  "name": "gomoku-3d",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A 3D Gomoku (五子棋) game built with React, TypeScript & Three.js — 4 AI difficulties, 2D/3D views, animations, replay & SGF/JSON export.",
+  "keywords": [
+    "gomoku",
+    "renju",
+    "five-in-a-row",
+    "react",
+    "threejs",
+    "webgl",
+    "game",
+    "ai"
+  ],
+  "author": "crper",
+  "license": "MIT",
+  "homepage": "https://crper.github.io/gomoku-3d/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crper/gomoku-3d.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "esbuild scripts/engine.test.ts scripts/replay.test.ts scripts/strength.test.ts --bundle --platform=node --format=esm --outdir=/tmp/gomoku-tests --log-level=warning && node /tmp/gomoku-tests/engine.test.mjs && node /tmp/gomoku-tests/replay.test.mjs && node /tmp/gomoku-tests/strength.test.mjs"
+  },
+  "dependencies": {
+    "@radix-ui/react-label": "^2.1.1",
+    "@radix-ui/react-slot": "^1.1.1",
+    "@radix-ui/react-separator": "^1.1.1",
+    "@radix-ui/react-slider": "^1.2.2",
+    "@radix-ui/react-switch": "^1.1.2",
+    "@react-three/drei": "^9.114.3",
+    "@react-three/fiber": "^8.17.10",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.4",
+    "tailwindcss-animate": "^1.0.7",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.169.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
