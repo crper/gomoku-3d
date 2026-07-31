@@ -14,6 +14,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,7 @@ export default function ReplayPanel({
   exportDisabled,
   compact = false,
 }: ReplayPanelProps) {
+  const { t } = useTranslation();
   const { currentStep, N, moves } = replay;
   const playing = replay.mode === "replaying-playing";
   const atStart = currentStep === 0;
@@ -63,10 +65,15 @@ export default function ReplayPanel({
   const currentMove = currentStep === 0 ? null : moves[currentStep - 1];
 
   const info = currentMove
-    ? `第 ${currentStep} 手 · ${currentMove.label}（${
-        currentMove.player === humanColor ? "玩家" : "电脑"
-      }）· (${currentMove.x}, ${currentMove.y})`
-    : "开局 · 空盘";
+    ? t("replay.moveInfo", {
+        step: currentStep,
+        label: currentMove.player === BLACK ? t("replay.black") : t("replay.white"),
+        player:
+          currentMove.player === humanColor
+            ? t("replay.player")
+            : t("replay.computer"),
+      }) + ` · (${currentMove.x}, ${currentMove.y})`
+    : t("replay.opening");
 
   return (
     <Card className={cn("glass", compact && "shadow-[var(--shadow-float)]")}>
@@ -79,16 +86,16 @@ export default function ReplayPanel({
         {/* header: badge + exit */}
         <div className="flex items-center justify-between">
           <Badge className="gap-1.5 bg-stone-800 text-white hover:bg-stone-800">
-            <Film className="h-3.5 w-3.5" /> 回放模式
+            <Film className="h-3.5 w-3.5" /> {t("replay.mode")}
           </Badge>
           <Button
             size="sm"
             variant="ghost"
             className="h-9 gap-1 text-stone-500"
             onClick={replay.exitReplay}
-            aria-label="退出回放"
+            aria-label={t("replay.exitReplay")}
           >
-            <X className="h-4 w-4" /> 退出
+            <X className="h-4 w-4" /> {t("replay.exit")}
           </Button>
         </div>
 
@@ -114,7 +121,7 @@ export default function ReplayPanel({
         {/* progress */}
         <div className="flex items-center gap-3">
           <Slider
-            aria-label="回放进度"
+            aria-label={t("replay.progress")}
             min={0}
             max={N}
             step={1}
@@ -133,7 +140,7 @@ export default function ReplayPanel({
             size="icon"
             variant="outline"
             className="h-11 w-11"
-            aria-label="首手"
+            aria-label={t("replay.first")}
             disabled={atStart}
             onClick={() => replay.goTo(0)}
           >
@@ -143,7 +150,7 @@ export default function ReplayPanel({
             size="icon"
             variant="outline"
             className="h-11 w-11"
-            aria-label="上一手"
+            aria-label={t("replay.prev")}
             disabled={atStart}
             onClick={replay.stepBack}
           >
@@ -152,7 +159,13 @@ export default function ReplayPanel({
           <Button
             size="icon"
             className="h-11 w-11"
-            aria-label={playing ? "暂停" : atEnd ? "重播" : "播放"}
+            aria-label={
+              playing
+                ? t("replay.pause")
+                : atEnd
+                  ? t("replay.replayAgain")
+                  : t("replay.play")
+            }
             aria-pressed={playing}
             onClick={replay.togglePlay}
           >
@@ -168,7 +181,7 @@ export default function ReplayPanel({
             size="icon"
             variant="outline"
             className="h-11 w-11"
-            aria-label="下一手"
+            aria-label={t("replay.next")}
             disabled={atEnd}
             onClick={replay.stepForward}
           >
@@ -178,7 +191,7 @@ export default function ReplayPanel({
             size="icon"
             variant="outline"
             className="h-11 w-11"
-            aria-label="末手"
+            aria-label={t("replay.last")}
             disabled={atEnd}
             onClick={() => replay.goTo(N)}
           >
@@ -189,7 +202,7 @@ export default function ReplayPanel({
         {/* speed */}
         <div
           role="group"
-          aria-label="播放速度"
+          aria-label={t("replay.speed")}
           className="flex items-center justify-center gap-1.5"
         >
           {SPEEDS.map((s) => (
@@ -214,7 +227,7 @@ export default function ReplayPanel({
             size="icon"
             variant="ghost"
             className="h-10 w-10"
-            aria-label="音效开关"
+            aria-label={t("replay.soundToggle")}
             onClick={onToggleMute}
           >
             {muted ? (
@@ -227,8 +240,12 @@ export default function ReplayPanel({
             size="icon"
             variant="ghost"
             className="h-10 w-10"
-            aria-label="切换视图"
-            title={viewMode === "3d" ? "切换到 2D 视图" : "切换到 3D 视图"}
+            aria-label={t("replay.view")}
+            title={
+              viewMode === "3d"
+                ? t("match.switchTo2d")
+                : t("match.switchTo3d")
+            }
             onClick={() => onSwitchView(viewMode === "3d" ? "2d" : "3d")}
           >
             {viewMode === "2d" ? (
@@ -244,7 +261,7 @@ export default function ReplayPanel({
             disabled={exportDisabled}
             onClick={onExport}
           >
-            <Download className="h-4 w-4" /> 导出棋谱
+            <Download className="h-4 w-4" /> {t("replay.export")}
           </Button>
         </div>
       </CardContent>

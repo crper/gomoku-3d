@@ -13,7 +13,24 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
+    },
+  },
+  build: {
+    // three.js is inherently large; split heavy vendors into their own chunks
+    // for better browser caching and to keep the app chunk lean.
+    chunkSizeWarningLimit: 1200,
+    rolldownOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes("node_modules")) {
+            if (id.includes("three")) return "three";
+            if (id.includes("@react-three")) return "r3f";
+            if (id.includes("react")) return "react-vendor";
+            return "vendor";
+          }
+        },
+      },
     },
   },
 });

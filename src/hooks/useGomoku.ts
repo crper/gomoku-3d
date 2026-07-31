@@ -1,4 +1,5 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Player,
   Move,
@@ -55,6 +56,7 @@ export interface UseGomoku {
 }
 
 export function useGomoku(): UseGomoku {
+  const { t } = useTranslation();
   const [game, setGame] = useState<engine.GameState>(() => engine.createGame());
   const [difficulty, setDifficultyState] = useState<Difficulty>("medium");
   const [humanColor, setHumanColorState] = useState<Player>(BLACK);
@@ -109,13 +111,13 @@ export function useGomoku(): UseGomoku {
       const Icon: LucideIcon = ACH_ICON[a.icon] ?? Sparkles;
       const tone = TONE_CLASSES[a.tone];
       pushToast({
-        title: `成就解锁 · ${a.title}`,
-        desc: a.desc,
+        title: `${t("toast.achievementUnlocked")} · ${t(`achievements.${a.id}.title`)}`,
+        desc: t(`achievements.${a.id}.desc`),
         icon: createElement(Icon, { className: "h-5 w-5" }),
         toneClass: `${tone.bg} ${tone.text}`,
       });
     },
-    [pushToast]
+    [pushToast, t]
   );
 
   // ---- apply a move (shared by human + AI) ----

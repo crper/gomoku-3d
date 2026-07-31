@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   RotateCcw,
   Circle,
@@ -18,6 +19,7 @@ import {
   Grid3x3,
   Film,
   Download,
+  Home,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,6 +38,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toast";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useGomoku } from "@/hooks/useGomoku";
 import { useViewMode, type ViewMode } from "@/hooks/useViewMode";
 import { useReplay } from "@/hooks/useReplay";
@@ -125,16 +128,137 @@ function Confetti() {
   );
 }
 
-const DIFFICULTIES: {
-  id: Difficulty;
-  label: string;
-  hint: string;
-  icon: LucideIcon;
-}[] = [
-  { id: "easy", label: "简单", hint: "偶有失误", icon: Dices },
-  { id: "medium", label: "中等", hint: "稳健应对", icon: Shield },
-  { id: "hard", label: "困难", hint: "攻防兼备", icon: Sword },
-  { id: "master", label: "大师", hint: "深算无懈", icon: Crown },
+type GameResult = "win" | "lose" | "draw";
+
+/**
+ * Semi-transparent game-over overlay with play-again / replay / dismiss actions.
+ * Mounts on game end and animates in; on dismiss it animates out before
+ * unmounting. All motion collapses under `prefers-reduced-motion`.
+ */
+function GameOverOverlay({
+  open,
+  result,
+  canReplay,
+  onPlayAgain,
+  onReplay,
+  onDismiss,
+}: {
+  open: boolean;
+  result: GameResult;
+  canReplay: boolean;
+  onPlayAgain: () => void;
+  onReplay: () => void;
+  onDismiss: () => void;
+}) {
+  const { t } = useTranslation();
+  const [render, setRender] = useState(open);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setRender(true);
+      const r = requestAnimationFrame(() => setShow(true));
+      return () => cancelAnimationFrame(r);
+    }
+    setShow(false);
+    const tm = window.setTimeout(() => setRender(false), 260);
+    return () => window.clearTimeout(tm);
+  }, [open]);
+
+  if (!render) return null;
+
+  const theme = {
+    win: {
+      Icon: Trophy,
+      chip: "bg-amber-100 text-amber-600",
+      title: t("overlay.win"),
+      desc: t("overlay.winDesc"),
+    },
+    lose: {
+      Icon: Sword,
+      chip: "bg-rose-100 text-rose-600",
+      title: t("overlay.lose"),
+      desc: t("overlay.loseDesc"),
+    },
+    draw: {
+      Icon: Circle,
+      chip: "bg-sky-100 text-sky-600",
+      title: t("overlay.draw"),
+      desc: t("overlay.drawDesc"),
+    },
+  }[result];
+  const Icon = theme.Icon;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={theme.title}
+      className={cn(
+        "absolute inset-0 z-30 flex items-center justify-center p-4 transition-opacity duration-300",
+        show ? "opacity-100" : "opacity-0"
+      )}
+    >
+      <button
+        aria-label={t("overlay.backToMenu")}
+        tabIndex={-1}
+        onClick={onDismiss}
+        className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-[3px]"
+      />
+      <div
+        className={cn(
+          "relative flex w-full max-w-[19rem] flex-col items-center gap-4 rounded-3xl border border-white/60 bg-white/90 px-6 py-7 text-center shadow-[var(--shadow-float)] backdrop-blur-xl transition-all duration-300",
+          show
+            ? "scale-100 opacity-100 translate-y-0"
+            : "scale-95 opacity-0 translate-y-3"
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-16 w-16 animate-pop-in items-center justify-center rounded-full",
+            theme.chip
+          )}
+        >
+          <Icon className="h-8 w-8" />
+        </span>
+        <div className="space-y-1">
+          <h2 className="text-2xl font-extrabold tracking-tight text-stone-800">
+            {theme.title}
+          </h2>
+          <p className="text-sm text-stone-500">{theme.desc}</p>
+        </div>
+        <div className="mt-1 flex w-full flex-col gap-2">
+          <Button onClick={onPlayAgain} className="w-full gap-1.5">
+            <RotateCcw className="h-4 w-4" /> {t("overlay.playAgain")}
+          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={onReplay}
+              disabled={!canReplay}
+              className="flex-1 gap-1.5"
+            >
+              <Film className="h-4 w-4" /> {t("overlay.replay")}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onDismiss}
+              className="flex-1 gap-1.5"
+            >
+              <Home className="h-4 w-4" /> {t("overlay.backToMenu")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const DIFFICULTIES: { id: Difficulty; icon: LucideIcon }[] = [
+  { id: "easy", icon: Dices },
+  { id: "medium", icon: Shield },
+  { id: "hard", icon: Sword },
+  { id: "master", icon: Crown },
 ];
 
 function diffSelectedClass(id: Difficulty): string {
@@ -151,6 +275,7 @@ function diffSelectedClass(id: Difficulty): string {
 }
 
 export default function App() {
+  const { t, i18n } = useTranslation();
   const {
     game,
     board,
@@ -185,6 +310,7 @@ export default function App() {
   const [boardMounted, setBoardMounted] = useState(false);
   const [viewMode, setViewMode] = useViewMode();
   const [exportOpen, setExportOpen] = useState(false);
+  const [overlayClosed, setOverlayClosed] = useState(false);
 
   // ---- replay (read-only view over a frozen snapshot; live game untouched) ----
   const replay = useReplay(game, thinking);
@@ -200,11 +326,22 @@ export default function App() {
     play("ui_click");
   };
 
+  // ---- keep <title> / <html lang> in sync with the active language ----
+  useEffect(() => {
+    document.title = t("header.documentTitle");
+    document.documentElement.lang = i18n.resolvedLanguage ?? i18n.language ?? "zh";
+  }, [t, i18n.resolvedLanguage, i18n.language]);
+
   // ---- board mount animation ----
   useEffect(() => {
     const r = requestAnimationFrame(() => setBoardMounted(true));
     return () => cancelAnimationFrame(r);
   }, []);
+
+  // ---- reset the game-over overlay whenever a fresh game starts ----
+  useEffect(() => {
+    if (status === "playing") setOverlayClosed(false);
+  }, [status]);
 
   // ---- parallax (no-op on touch / reduced motion) ----
   useEffect(() => {
@@ -281,36 +418,38 @@ export default function App() {
     setEgg(true);
     window.setTimeout(() => setEgg(false), 1300);
     pushToast({
-      title: "彩蛋 ✦",
-      desc: "愿你落子如风，五子连珠！",
+      title: t("toast.eggTitle"),
+      desc: t("toast.eggDesc"),
       icon: <Sparkles className="h-5 w-5" />,
       toneClass: "bg-amber-100 text-amber-600",
     });
   };
 
   const statusText = useMemo(() => {
-    if (status === "draw") return { label: "平局", tone: "secondary" as const };
+    if (status === "draw")
+      return { label: t("status.draw"), tone: "secondary" as const };
     if (status === "black_win" || status === "white_win")
       return {
-        label: (winner === humanColor ? "你" : "AI") + " 获胜",
+        label: winner === humanColor ? t("status.youWin") : t("status.aiWin"),
         tone: "default" as const,
       };
-    if (thinking) return { label: "AI 思考中…", tone: "secondary" as const };
+    if (thinking) return { label: t("status.thinking"), tone: "secondary" as const };
     return {
-      label: currentPlayer === humanColor ? "轮到你落子" : "AI 回合",
+      label: currentPlayer === humanColor ? t("status.yourTurn") : t("status.aiTurn"),
       tone: "secondary" as const,
     };
-  }, [status, winner, thinking, currentPlayer, humanColor]);
+  }, [status, winner, thinking, currentPlayer, humanColor, t]);
 
-  const bannerText = useMemo(() => {
-    if (status === "draw") return "平局";
-    if (status === "black_win" || status === "white_win")
-      return winner === humanColor ? "你赢了 · 五子连珠！" : "惜败 · 再来一局";
-    return null;
-  }, [status, winner, humanColor]);
+  const gameResult: GameResult | null =
+    status === "draw"
+      ? "draw"
+      : status === "black_win" || status === "white_win"
+      ? winner === humanColor
+        ? "win"
+        : "lose"
+      : null;
+  const showOverlay = !isReplay && gameResult !== null && !overlayClosed;
 
-  const current = DIFFICULTIES.find((d) => d.id === difficulty)!;
-  const CurrentIcon = current.icon;
   const streakPct = Math.min(stats.streak, 5) / 5;
 
   return (
@@ -351,15 +490,14 @@ export default function App() {
                 onClick={triggerEgg}
                 className="cursor-pointer text-2xl font-bold tracking-tight text-stone-800 transition-transform hover:scale-[1.02] active:scale-95"
               >
-                五子棋 <span className="text-gradient">Gomoku</span>
+                {t("header.title")}{" "}
+                <span className="text-gradient">{t("header.brand")}</span>
               </h1>
-              <p className="mt-0.5 text-sm text-stone-500">
-                人机对战 · 悬浮预览 · 落子引导线
-              </p>
+              <p className="mt-0.5 text-sm text-stone-500">{t("header.subtitle")}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <Badge
               variant={statusText.tone}
               className="w-fit gap-1.5 px-3 py-1.5 text-sm shadow-[var(--shadow-soft)]"
@@ -377,6 +515,8 @@ export default function App() {
               {statusText.label}
             </Badge>
 
+            <LanguageSwitcher />
+
             <div className="flex items-center gap-2">
               {muted ? (
                 <VolumeX className="h-4 w-4 text-stone-400" />
@@ -384,13 +524,13 @@ export default function App() {
                 <Volume2 className="h-4 w-4 text-orange-500" />
               )}
               <Label htmlFor="mute-switch" className="text-sm text-stone-600">
-                音效
+                {t("header.sound")}
               </Label>
               <Switch
                 id="mute-switch"
                 checked={!muted}
                 onCheckedChange={() => toggleMute()}
-                aria-label="音效开关"
+                aria-label={t("header.soundToggle")}
               />
             </div>
           </div>
@@ -428,7 +568,7 @@ export default function App() {
                   <div className="absolute inset-y-0 -left-1/3 w-1/3 skew-x-12 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
                   <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/85 px-4 py-2 text-sm font-medium text-stone-700 shadow-[var(--shadow-soft)] backdrop-blur-md">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
-                    AI 思考中
+                    {t("board.thinking")}
                     <span className="flex gap-1">
                       {[0, 1, 2].map((i) => (
                         <i
@@ -450,7 +590,7 @@ export default function App() {
                 >
                   <div className="flex items-center gap-2 rounded-full border border-white/60 bg-black/70 px-3 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-soft)] backdrop-blur-md">
                     <Film className="h-3.5 w-3.5" />
-                    回放模式
+                    {t("board.replayMode")}
                     <span className="tabular-nums">
                       {replay.currentStep} / {replay.N}
                     </span>
@@ -458,14 +598,19 @@ export default function App() {
                 </div>
               )}
 
-              {/* game-over banner (hidden while replaying mid-game states) */}
-              {!isReplay && status !== "playing" && bannerText && (
-                <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center pt-4">
-                  <div className="animate-pop-in rounded-2xl border border-white/60 bg-black/75 px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-float)] backdrop-blur-md">
-                    {bannerText}
-                    {winLine && " · 已高亮胜利连线"}
-                  </div>
-                </div>
+              {/* game-over overlay (hidden while replaying mid-game states) */}
+              {gameResult && (
+                <GameOverOverlay
+                  open={showOverlay}
+                  result={gameResult}
+                  canReplay={moveCount > 0 && !thinking}
+                  onPlayAgain={restart}
+                  onReplay={() => {
+                    setOverlayClosed(true);
+                    replay.enterReplay();
+                  }}
+                  onDismiss={() => setOverlayClosed(true)}
+                />
               )}
             </div>
 
@@ -480,26 +625,27 @@ export default function App() {
                 />
                 <span className="font-medium">
                   {isReplay
-                    ? "回放中 · 只读"
+                    ? t("board.replayReadonly")
                     : interactive
-                    ? "轮到你"
+                    ? t("board.yourTurn")
                     : thinking
-                    ? "AI 思考中"
+                    ? t("board.thinking")
                     : status === "playing"
-                    ? "AI 回合"
+                    ? t("board.aiTurn")
                     : ""}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-stone-500">
                 <span>
-                  手数 <b className="text-stone-800">{moveCount}</b>
+                  {t("board.moves")}{" "}
+                  <b className="text-stone-800">{moveCount}</b>
                 </span>
                 <span>
-                  用时{" "}
+                  {t("board.time")}{" "}
                   <b className="tabular-nums text-stone-800">{mmss}</b>
                 </span>
                 <span
-                  title="将鼠标移到棋盘交叉点，会显示半透明落子预览与橙色引导线"
+                  title={t("board.hint")}
                   className="cursor-help text-stone-400"
                 >
                   ?
@@ -518,46 +664,50 @@ export default function App() {
                 isReplay && "opacity-50 pointer-events-none"
               )}
             >
-              <CardHeader className="p-5 pb-2.5">
-                <CardTitle className="text-base">难度</CardTitle>
+              <CardHeader className="p-5 pb-3">
+                <CardTitle className="text-base">{t("difficulty.title")}</CardTitle>
                 <CardDescription className="text-xs">
-                  越高越强，AI 会尝试进攻与防守
+                  {t("difficulty.desc")}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col gap-2 p-5 pt-0">
+              <CardContent className="p-5 pt-0">
                 <div
-                  className={cn(
-                    "mb-1 inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium",
-                    diffSelectedClass(difficulty)
-                  )}
+                  role="radiogroup"
+                  aria-label={t("difficulty.title")}
+                  className="grid grid-cols-2 gap-2"
                 >
-                  <CurrentIcon className="h-3.5 w-3.5" />
-                  当前：{current.label}
+                  {DIFFICULTIES.map((d) => {
+                    const Icon = d.icon;
+                    const isSel = difficulty === d.id;
+                    return (
+                      <button
+                        key={d.id}
+                        role="radio"
+                        aria-checked={isSel}
+                        onClick={() => setDifficulty(d.id)}
+                        className={cn(
+                          "group flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300",
+                          isSel
+                            ? diffSelectedClass(d.id)
+                            : "border-stone-200 bg-white/70 text-stone-600 hover:bg-stone-50"
+                        )}
+                      >
+                        <span className="flex items-center gap-1.5 text-sm font-semibold">
+                          <Icon className="h-4 w-4" />
+                          {t(`difficulty.${d.id}.label`)}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[11px] leading-tight",
+                            isSel ? "opacity-80" : "text-stone-400"
+                          )}
+                        >
+                          {t(`difficulty.${d.id}.hint`)}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-                {DIFFICULTIES.map((d) => {
-                  const Icon = d.icon;
-                  const isSel = difficulty === d.id;
-                  return (
-                    <button
-                      key={d.id}
-                      onClick={() => setDifficulty(d.id)}
-                      className={cn(
-                        "group flex items-center justify-between rounded-xl border px-3 py-2 text-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]",
-                        isSel
-                          ? diffSelectedClass(d.id)
-                          : "border-stone-200 bg-white/70 text-stone-600 hover:bg-stone-50"
-                      )}
-                    >
-                      <span className="flex items-center gap-2 font-medium">
-                        <Icon className="h-4 w-4" />
-                        {d.label}
-                      </span>
-                      <span className="text-xs text-stone-400 group-hover:text-stone-500">
-                        {d.hint}
-                      </span>
-                    </button>
-                  );
-                })}
               </CardContent>
             </Card>
 
@@ -578,8 +728,8 @@ export default function App() {
               </div>
             ) : (
             <Card interactive className="glass">
-              <CardHeader className="p-5 pb-2.5">
-                <CardTitle className="text-base">对局</CardTitle>
+              <CardHeader className="p-5 pb-3">
+                <CardTitle className="text-base">{t("match.title")}</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 p-5 pt-0">
                 <div className="flex gap-2">
@@ -587,22 +737,24 @@ export default function App() {
                     variant={humanColor === BLACK ? "default" : "outline"}
                     size="sm"
                     className="flex-1 gap-1.5"
+                    aria-pressed={humanColor === BLACK}
                     onClick={() => setHumanColor(BLACK)}
                   >
-                    <User className="h-4 w-4" /> 玩家先手
+                    <User className="h-4 w-4" /> {t("match.humanFirst")}
                   </Button>
                   <Button
                     variant={humanColor === WHITE ? "default" : "outline"}
                     size="sm"
                     className="flex-1 gap-1.5"
+                    aria-pressed={humanColor === WHITE}
                     onClick={() => setHumanColor(WHITE)}
                   >
-                    <Bot className="h-4 w-4" /> AI 先手
+                    <Bot className="h-4 w-4" /> {t("match.aiFirst")}
                   </Button>
                 </div>
                 <div
                   role="group"
-                  aria-label="切换视图"
+                  aria-label={t("match.view")}
                   className="flex gap-2"
                 >
                   <Button
@@ -610,26 +762,26 @@ export default function App() {
                     size="sm"
                     className="flex-1 gap-1.5"
                     aria-pressed={viewMode === "2d"}
-                    title="2D 俯视 · 锁定旋转"
+                    title={t("match.view2dTitle")}
                     onClick={() => switchView("2d")}
                   >
-                    <Grid3x3 className="h-4 w-4" /> 2D 平面
+                    <Grid3x3 className="h-4 w-4" /> {t("match.view2d")}
                   </Button>
                   <Button
                     variant={viewMode === "3d" ? "default" : "outline"}
                     size="sm"
                     className="flex-1 gap-1.5"
                     aria-pressed={viewMode === "3d"}
-                    title="3D 立体 · 自由视角"
+                    title={t("match.view3dTitle")}
                     onClick={() => switchView("3d")}
                   >
-                    <Box className="h-4 w-4" /> 3D 立体
+                    <Box className="h-4 w-4" /> {t("match.view3d")}
                   </Button>
                 </div>
                 <Separator />
                 <div className="grid grid-cols-2 gap-2">
                   <Button onClick={restart} className="gap-1.5">
-                    <RotateCcw className="h-4 w-4" /> 重新开始
+                    <RotateCcw className="h-4 w-4" /> {t("match.restart")}
                   </Button>
                   <Button
                     variant="secondary"
@@ -637,7 +789,7 @@ export default function App() {
                     disabled={!canUndo}
                     className="gap-1.5"
                   >
-                    <Undo2 className="h-4 w-4" /> 悔棋
+                    <Undo2 className="h-4 w-4" /> {t("match.undo")}
                   </Button>
                 </div>
                 <Separator />
@@ -648,10 +800,10 @@ export default function App() {
                     disabled={!replay.canEnterReplay}
                     title={
                       thinking
-                        ? "AI 思考中"
+                        ? t("match.thinking")
                         : moveCount === 0
-                        ? "暂无棋谱可回放"
-                        : "回放本局"
+                        ? t("match.replayNone")
+                        : t("match.replayThis")
                     }
                     className={cn(
                       "gap-1.5",
@@ -660,16 +812,18 @@ export default function App() {
                         "ring-2 ring-orange-300"
                     )}
                   >
-                    <Film className="h-4 w-4" /> 回放
+                    <Film className="h-4 w-4" /> {t("match.replay")}
                   </Button>
                   <Button
                     variant="secondary"
                     onClick={() => setExportOpen(true)}
                     disabled={moveCount === 0}
-                    title={moveCount === 0 ? "暂无棋谱可导出" : "导出棋谱"}
+                    title={
+                      moveCount === 0 ? t("match.exportNone") : t("match.export")
+                    }
                     className="gap-1.5"
                   >
-                    <Download className="h-4 w-4" /> 导出棋谱
+                    <Download className="h-4 w-4" /> {t("match.export")}
                   </Button>
                 </div>
               </CardContent>
@@ -684,17 +838,17 @@ export default function App() {
                 isReplay && "opacity-50 pointer-events-none"
               )}
             >
-              <CardHeader className="p-5 pb-2.5">
+              <CardHeader className="p-5 pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Trophy className="h-4 w-4 text-orange-500" /> 战绩 & 成就
+                  <Trophy className="h-4 w-4 text-orange-500" /> {t("stats.title")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4 p-5 pt-0">
                 <div className="grid grid-cols-3 gap-2 text-center">
                   {[
-                    { k: "胜", v: stats.wins, c: "text-emerald-600" },
-                    { k: "负", v: stats.losses, c: "text-rose-500" },
-                    { k: "和", v: stats.draws, c: "text-sky-600" },
+                    { k: t("stats.win"), v: stats.wins, c: "text-emerald-600" },
+                    { k: t("stats.loss"), v: stats.losses, c: "text-rose-500" },
+                    { k: t("stats.draw"), v: stats.draws, c: "text-sky-600" },
                   ].map((s) => (
                     <div
                       key={s.k}
@@ -716,7 +870,7 @@ export default function App() {
                 {/* win-streak progress toward 5 */}
                 <div>
                   <div className="mb-1 flex items-center justify-between text-xs text-stone-500">
-                    <span>当前连胜</span>
+                    <span>{t("stats.streak")}</span>
                     <span className="font-semibold text-orange-600">
                       {stats.streak} / 5
                     </span>
@@ -738,7 +892,7 @@ export default function App() {
                     return (
                       <div
                         key={a.id}
-                        title={a.desc}
+                        title={t(`achievements.${a.id}.desc`)}
                         className={cn(
                           "flex flex-col items-center gap-1 rounded-2xl border p-2.5 text-center transition-all duration-300 hover:-translate-y-0.5",
                           earned
@@ -762,7 +916,7 @@ export default function App() {
                             earned ? "text-stone-700" : "text-stone-400"
                           )}
                         >
-                          {a.title}
+                          {t(`achievements.${a.id}.title`)}
                         </span>
                       </div>
                     );
@@ -780,8 +934,8 @@ export default function App() {
           size="icon"
           variant="ghost"
           className="h-10 w-10"
-          aria-label="切换先手"
-          title="切换先手"
+          aria-label={t("match.switchToggleFirst")}
+          title={t("match.switchToggleFirst")}
           onClick={() => setHumanColor(humanColor === BLACK ? WHITE : BLACK)}
         >
           <User className="h-4 w-4" />
@@ -790,8 +944,8 @@ export default function App() {
           size="icon"
           variant="ghost"
           className="h-10 w-10"
-          aria-label="重新开始"
-          title="重新开始"
+          aria-label={t("match.restart")}
+          title={t("match.restart")}
           onClick={restart}
         >
           <RotateCcw className="h-4 w-4" />
@@ -800,8 +954,8 @@ export default function App() {
           size="icon"
           variant="ghost"
           className="h-10 w-10"
-          aria-label="悔棋"
-          title="悔棋"
+          aria-label={t("match.undo")}
+          title={t("match.undo")}
           disabled={!canUndo}
           onClick={undo}
         >
@@ -811,8 +965,8 @@ export default function App() {
           size="icon"
           variant="ghost"
           className="h-10 w-10"
-          aria-label="音效开关"
-          title="音效开关"
+          aria-label={t("header.soundToggle")}
+          title={t("header.soundToggle")}
           onClick={toggleMute}
         >
           {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
@@ -821,8 +975,8 @@ export default function App() {
           size="icon"
           variant="ghost"
           className="h-10 w-10"
-          aria-label="切换视图"
-          title={viewMode === "3d" ? "切换到 2D 视图" : "切换到 3D 视图"}
+          aria-label={t("match.view")}
+          title={viewMode === "3d" ? t("match.switchTo2d") : t("match.switchTo3d")}
           onClick={() => switchView(viewMode === "3d" ? "2d" : "3d")}
         >
           {viewMode === "2d" ? <Box className="h-4 w-4" /> : <Grid3x3 className="h-4 w-4" />}
@@ -831,8 +985,14 @@ export default function App() {
           size="icon"
           variant="ghost"
           className="h-10 w-10"
-          aria-label="回放"
-          title={thinking ? "AI 思考中" : moveCount === 0 ? "暂无棋谱可回放" : "回放"}
+          aria-label={t("match.replay")}
+          title={
+            thinking
+              ? t("match.thinking")
+              : moveCount === 0
+              ? t("match.replayNone")
+              : t("match.replay")
+          }
           disabled={!replay.canEnterReplay}
           onClick={replay.enterReplay}
         >
@@ -842,8 +1002,8 @@ export default function App() {
           size="icon"
           variant="ghost"
           className="h-10 w-10"
-          aria-label="导出棋谱"
-          title={moveCount === 0 ? "暂无棋谱可导出" : "导出棋谱"}
+          aria-label={t("match.export")}
+          title={moveCount === 0 ? t("match.exportNone") : t("match.export")}
           disabled={moveCount === 0}
           onClick={() => setExportOpen(true)}
         >

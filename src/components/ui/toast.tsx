@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 export interface ToastItem {
   id: number;
@@ -14,6 +15,7 @@ interface ToasterProps {
 }
 
 export function Toaster({ items, onDismiss }: ToasterProps) {
+  const { t: tr } = useTranslation();
   return (
     <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4">
       {items.map((t) => (
@@ -43,7 +45,7 @@ export function Toaster({ items, onDismiss }: ToasterProps) {
           </div>
           <button
             onClick={() => onDismiss(t.id)}
-            aria-label="关闭"
+            aria-label={tr("toast.close")}
             className="shrink-0 rounded-full p-1 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
           >
             <svg

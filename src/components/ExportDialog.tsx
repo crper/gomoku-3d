@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,22 +16,10 @@ import {
 } from "@/lib/gomoku/export";
 import type { ToastItem } from "@/components/ui/toast";
 
-const FORMATS: { id: ExportFormat; name: string; desc: string }[] = [
-  {
-    id: "sgf",
-    name: "SGF",
-    desc: "通用棋谱格式，可导入绝大多数围棋/五子棋/连珠软件",
-  },
-  {
-    id: "json",
-    name: "JSON",
-    desc: "结构化数据，含元信息，便于程序读取与二次开发",
-  },
-  {
-    id: "txt",
-    name: "TXT",
-    desc: "纯文本坐标列表，人类可读，便于粘贴分享",
-  },
+const FORMATS: { id: ExportFormat; name: string }[] = [
+  { id: "sgf", name: "SGF" },
+  { id: "json", name: "JSON" },
+  { id: "txt", name: "TXT" },
 ];
 
 const EXT: Record<ExportFormat, string> = {
@@ -57,6 +46,7 @@ export default function ExportDialog({
   const [format, setFormat] = useState<ExportFormat>("sgf");
   const [name, setName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const { t } = useTranslation();
 
   // reset + focus on every open
   useEffect(() => {
@@ -93,15 +83,18 @@ export default function ExportDialog({
       const meta = buildMeta(game, humanColor);
       const { filename } = exportGame(moves, meta, format, name);
       pushToast({
-        title: `已导出 ${filename}`,
-        desc: `共 ${game.moveCount} 手 · ${FORMATS.find((f) => f.id === format)!.name} 格式`,
+        title: t("export.exported", { filename }),
+        desc: t("export.exportedDesc", {
+          count: game.moveCount,
+          format: FORMATS.find((f) => f.id === format)!.name,
+        }),
         icon: <Download className="h-5 w-5" />,
         toneClass: "bg-emerald-50 text-emerald-700",
       });
       onClose();
     } catch {
       pushToast({
-        title: "导出失败，请重试",
+        title: t("export.exportFailed"),
         toneClass: "bg-rose-50 text-rose-600",
       });
     }
@@ -117,16 +110,18 @@ export default function ExportDialog({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="导出棋谱"
+        aria-label={t("export.title")}
         className="relative w-full max-w-sm rounded-2xl border border-white/60 bg-white/95 p-5 shadow-[var(--shadow-float)] backdrop-blur-md"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-stone-800">导出棋谱</h2>
+          <h2 className="text-base font-semibold text-stone-800">
+            {t("export.title")}
+          </h2>
           <Button
             size="icon"
             variant="ghost"
             className="h-8 w-8 text-stone-400"
-            aria-label="关闭"
+            aria-label={t("export.close")}
             onClick={onClose}
           >
             <X className="h-4 w-4" />
@@ -136,7 +131,7 @@ export default function ExportDialog({
         {/* format */}
         <fieldset className="mb-4">
           <legend className="mb-2 text-sm font-medium text-stone-600">
-            格式
+            {t("export.format")}
           </legend>
           <div className="flex flex-col gap-2">
             {FORMATS.map((f) => (
@@ -159,7 +154,7 @@ export default function ExportDialog({
                 <span className="text-sm">
                   <b className="text-stone-800">{f.name}</b>
                   <span className="ml-1.5 text-xs text-stone-500">
-                    {f.desc}
+                    {t(`export.${f.id}.desc`)}
                   </span>
                 </span>
               </label>
@@ -173,7 +168,7 @@ export default function ExportDialog({
             htmlFor="export-filename"
             className="mb-2 block text-sm font-medium text-stone-600"
           >
-            文件名
+            {t("export.filename")}
           </label>
           <div className="flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-orange-300">
             <input
@@ -183,7 +178,7 @@ export default function ExportDialog({
               value={name}
               onChange={(e) => setName(sanitizeFileName(e.target.value))}
               className="min-w-0 flex-1 bg-transparent text-sm text-stone-800 outline-none"
-              aria-label="导出文件名"
+              aria-label={t("export.filenameLabel")}
             />
             <span className="shrink-0 text-sm text-stone-400">
               {EXT[format]}
@@ -193,15 +188,15 @@ export default function ExportDialog({
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t("export.cancel")}
           </Button>
           <Button
             className="gap-1.5"
             disabled={!canExport}
-            title={game.moveCount === 0 ? "空对局无法导出" : undefined}
+            title={game.moveCount === 0 ? t("export.emptyTip") : undefined}
             onClick={doExport}
           >
-            <Download className="h-4 w-4" /> 导出
+            <Download className="h-4 w-4" /> {t("export.export")}
           </Button>
         </div>
       </div>
