@@ -28,17 +28,18 @@
 
 ### 1.1 范围
 
-| 功能 | 说明 |
-|---|---|
-| 回放 | 逐步前进 / 后退 / 跳转任意手数 / 播放-暂停 / 播放速度调节 / 进度条拖动 |
+| 功能 | 说明                                                                                 |
+| ---- | ------------------------------------------------------------------------------------ |
+| 回放 | 逐步前进 / 后退 / 跳转任意手数 / 播放-暂停 / 播放速度调节 / 进度条拖动               |
 | 导出 | SGF（主格式）/ JSON（第二格式）/ TXT（纯文本坐标，可选），文件命名可编辑，保存到本地 |
-| 反馈 | 每步落子状态清晰可读；导出成功 toast；空局禁用并提示 |
+| 反馈 | 每步落子状态清晰可读；导出成功 toast；空局禁用并提示                                 |
 
 ### 1.2 核心原则：回放 = 只读观察模式
 
 **进入回放后，禁用一切改变对局状态的实时操作**：落子（棋盘点击/悬停预览）、悔棋、重开（重开改为「先退出回放再确认」，见 §3.5）。退出回放后，棋盘与控件恢复到进入前的实时对局状态，**对局数据零改动**。
 
 **为什么这样设计**：
+
 1. **避免状态冲突**：若回放中允许落子，会产生「从第 k 手分叉」的变体树语义，`history` 是线性数组，无法表达分叉；强行支持会污染引擎不可变状态、且与 AI 调度（不可改动）冲突。
 2. **心智模型简单**：玩家清楚地知道「我现在在看录像，不是在下棋」，无需理解复杂的分支规则。
 3. **实现安全**：回放态只是一个「渲染用的视图指针 currentStep」，实时对局的 `game` 对象原封不动，退出即还原，天然无副作用。
@@ -61,35 +62,35 @@
 ReplayMode = 'idle' | 'replaying-paused' | 'replaying-playing'
 ```
 
-| 状态 | 含义 |
-|---|---|
-| `idle` | 未在回放，实时对局正常交互（当前应用的默认状态） |
-| `replaying-paused` | 回放中，暂停；可拖进度条 / 单步 / 播放 |
+| 状态                | 含义                                                  |
+| ------------------- | ----------------------------------------------------- |
+| `idle`              | 未在回放，实时对局正常交互（当前应用的默认状态）      |
+| `replaying-paused`  | 回放中，暂停；可拖进度条 / 单步 / 播放                |
 | `replaying-playing` | 回放中，自动播放；每 `speedMs` 毫秒自动 `stepForward` |
 
 ### 2.2 核心变量
 
-| 变量 | 类型 | 范围/默认 | 说明 |
-|---|---|---|---|
-| `currentStep` | number | 0..N，进入回放时初始 = 0 | 当前展示「第 currentStep 手后的盘面」；0 = 空盘 |
-| `isPlaying` | boolean | false | 派生：`mode === 'replaying-playing'` |
-| `speedMs` | number | 800（= 1×） | 自动播放每步间隔；速度档 0.5×=1600ms、1×=800ms、2×=400ms、4×=200ms |
-| `N` | number | 进入回放时快照 `game.moveCount` | 总手数，回放期间视为常量（AI 门控保证不变） |
-| `moves` | ReplayMove[] | 进入时预计算 | 见 §0 |
+| 变量          | 类型         | 范围/默认                       | 说明                                                               |
+| ------------- | ------------ | ------------------------------- | ------------------------------------------------------------------ |
+| `currentStep` | number       | 0..N，进入回放时初始 = 0        | 当前展示「第 currentStep 手后的盘面」；0 = 空盘                    |
+| `isPlaying`   | boolean      | false                           | 派生：`mode === 'replaying-playing'`                               |
+| `speedMs`     | number       | 800（= 1×）                     | 自动播放每步间隔；速度档 0.5×=1600ms、1×=800ms、2×=400ms、4×=200ms |
+| `N`           | number       | 进入回放时快照 `game.moveCount` | 总手数，回放期间视为常量（AI 门控保证不变）                        |
+| `moves`       | ReplayMove[] | 进入时预计算                    | 见 §0                                                              |
 
 ### 2.3 操作语义
 
-| 操作 | 前置条件 | 语义 |
-|---|---|---|
-| `enterReplay()` | `moveCount > 0` 且 AI 非思考中 | idle → replaying-paused；`currentStep = 0`；预计算 `moves` |
-| `stepForward()` | `currentStep < N` | `currentStep += 1`；到达 N 时若在播放则自动 `pause()` |
-| `stepBack()` | `currentStep > 0` | `currentStep -= 1`；后退**总是先 pause()**（用户回看意图明确） |
-| `goTo(k)` | `0 ≤ k ≤ N` | `currentStep = k`；播放中拖动 = 拖动期间暂停，松手后维持暂停（避免拖着拖着又自己跑） |
-| `play()` | `currentStep < N` | → replaying-playing；启动 `setInterval(stepForward, speedMs)`。若 `currentStep === N` 则先 `goTo(0)` 再播放（「重播」语义） |
-| `pause()` | playing | → replaying-paused；清定时器 |
-| `togglePlay()` | — | playing ? pause() : play()；绑定空格键与播放按钮 |
-| `setSpeed(ms)` | — | 更新 `speedMs`；播放中立即以新间隔重建定时器 |
-| `exitReplay()` | 回放中 | → idle；清定时器；棋盘恢复渲染实时 `game` 最终态 |
+| 操作            | 前置条件                       | 语义                                                                                                                        |
+| --------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `enterReplay()` | `moveCount > 0` 且 AI 非思考中 | idle → replaying-paused；`currentStep = 0`；预计算 `moves`                                                                  |
+| `stepForward()` | `currentStep < N`              | `currentStep += 1`；到达 N 时若在播放则自动 `pause()`                                                                       |
+| `stepBack()`    | `currentStep > 0`              | `currentStep -= 1`；后退**总是先 pause()**（用户回看意图明确）                                                              |
+| `goTo(k)`       | `0 ≤ k ≤ N`                    | `currentStep = k`；播放中拖动 = 拖动期间暂停，松手后维持暂停（避免拖着拖着又自己跑）                                        |
+| `play()`        | `currentStep < N`              | → replaying-playing；启动 `setInterval(stepForward, speedMs)`。若 `currentStep === N` 则先 `goTo(0)` 再播放（「重播」语义） |
+| `pause()`       | playing                        | → replaying-paused；清定时器                                                                                                |
+| `togglePlay()`  | —                              | playing ? pause() : play()；绑定空格键与播放按钮                                                                            |
+| `setSpeed(ms)`  | —                              | 更新 `speedMs`；播放中立即以新间隔重建定时器                                                                                |
+| `exitReplay()`  | 回放中                         | → idle；清定时器；棋盘恢复渲染实时 `game` 最终态                                                                            |
 
 ### 2.4 边界规则
 
@@ -106,6 +107,7 @@ ReplayMode = 'idle' | 'replaying-paused' | 'replaying-playing'
 ### 3.1 总体方案：回放浮层条（Replay Bar）替换底部控制条
 
 进入回放时，**现有底部控制条整体切换为「回放控制条」**（同一位置、同一容器高度，交叉淡入 150ms）。理由：
+
 - 避免两排控件同屏导致认知过载与移动端空间不足；
 - 「悔棋/重开」在回放中本就该禁用，隐藏比 disabled 更干净；
 - 「静音」「2D/3D 切换」这两个与回放兼容的功能**保留在回放条右端**（视角切换在回放中很有用——2D 看局面、3D 看动效）。
@@ -138,10 +140,10 @@ ReplayMode = 'idle' | 'replaying-paused' | 'replaying-playing'
 
 ### 3.4 响应式
 
-| 断点 | 布局 |
-|---|---|
-| `lg`（≥1024，双栏） | 回放条单行铺满棋盘下方原底栏位置；当前手信息卡悬浮棋盘左上 |
-| `<lg`（单栏/移动） | 回放条两行：第一行 = 进度条 + 步数；第二行 = ✕ / ◀ / ▶播放 / ▶ / 速度 / 2D-3D（静音可收进速度旁或省略，首手/末手省略）。当前手信息置于回放条上方单行。按钮触控目标 ≥ 44×44px |
+| 断点                | 布局                                                                                                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lg`（≥1024，双栏） | 回放条单行铺满棋盘下方原底栏位置；当前手信息卡悬浮棋盘左上                                                                                                                   |
+| `<lg`（单栏/移动）  | 回放条两行：第一行 = 进度条 + 步数；第二行 = ✕ / ◀ / ▶播放 / ▶ / 速度 / 2D-3D（静音可收进速度旁或省略，首手/末手省略）。当前手信息置于回放条上方单行。按钮触控目标 ≥ 44×44px |
 
 ### 3.5 进入/退出的入口与视觉态
 
@@ -206,16 +208,16 @@ ReplayMode = 'idle' | 'replaying-paused' | 'replaying-playing'
 
 逐属性说明：
 
-| 属性 | 值 | 说明 |
-|---|---|---|
-| `GM` | `4` | 游戏类型。SGF 标准中 GM[4] = Gomoku+Renju（GM[1] 是围棋）。若工程更看重与任务书对齐/围棋软件兼容性，可用 `GM[1]`，两者均可被主流软件打开；**默认建议 GM[4]，在代码常量处留注释** |
-| `FF` | `4` | SGF 版本 4 |
-| `CA` | `UTF-8` | 字符编码（PB/PW 含中文，必须声明） |
-| `SZ` | `15` | 棋盘 15×15 |
-| `AP` | `Gomoku3D:1.0` | 生成应用标识（可选） |
-| `DT` | `YYYY-MM-DD` | 导出日期 |
-| `PB` / `PW` | 可读名 | 按先手设置映射：人类方=「玩家」，AI 方=「电脑」。默认（人类执黑）→ `PB[玩家]PW[电脑]`；若 AI 先手执黑则反转 |
-| `RE` | 见下 | 结果：黑胜=`B+W`，白胜=`W+W`，平局=`0`，对局未结束=`?` |
+| 属性        | 值             | 说明                                                                                                                                                                             |
+| ----------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GM`        | `4`            | 游戏类型。SGF 标准中 GM[4] = Gomoku+Renju（GM[1] 是围棋）。若工程更看重与任务书对齐/围棋软件兼容性，可用 `GM[1]`，两者均可被主流软件打开；**默认建议 GM[4]，在代码常量处留注释** |
+| `FF`        | `4`            | SGF 版本 4                                                                                                                                                                       |
+| `CA`        | `UTF-8`        | 字符编码（PB/PW 含中文，必须声明）                                                                                                                                               |
+| `SZ`        | `15`           | 棋盘 15×15                                                                                                                                                                       |
+| `AP`        | `Gomoku3D:1.0` | 生成应用标识（可选）                                                                                                                                                             |
+| `DT`        | `YYYY-MM-DD`   | 导出日期                                                                                                                                                                         |
+| `PB` / `PW` | 可读名         | 按先手设置映射：人类方=「玩家」，AI 方=「电脑」。默认（人类执黑）→ `PB[玩家]PW[电脑]`；若 AI 先手执黑则反转                                                                      |
+| `RE`        | 见下           | 结果：黑胜=`B+W`，白胜=`W+W`，平局=`0`，对局未结束=`?`                                                                                                                           |
 
 ### 5.2 着法序列
 
@@ -266,13 +268,13 @@ ReplayMode = 'idle' | 'replaying-paused' | 'replaying-playing'
 
 ## 6. 与现有系统的集成点（高层，供工程分解）
 
-| 位置 | 改动 |
-|---|---|
+| 位置                                                              | 改动                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **新模块 `src/lib/gomoku/replay.ts`**（或 `export.ts`，工程自定） | 纯函数工具：`deriveMoves(history, finalBoard): ReplayMove[]`（逐格 diff 预计算）、`boardAtStep(k)` 选择器、`toSGF(moves, meta)`、`toJSON(moves, meta)`、`toTXT(...)`、`downloadTextFile(name, text, mime)`、`sanitizeFileName`、`defaultFileName()`。零依赖、可单测 |
-| **`src/App.tsx`** | 新增回放状态（mode/currentStep/speedMs，建议独立 `useReplay` hook 放 `src/hooks/`）；底部控制条 ↔ 回放条切换；「回放」「导出棋谱」按钮；导出对话框；回放模式 badge 与侧栏降级；键盘事件（←/→/空格/Esc）；AI 思考中禁用回放入口 |
-| **`src/components/GameBoard.tsx`** | 新增可选 **override props**：`boardOverride?: Stone[]`、`lastMoveOverride?: Move|null`、`winLineOverride?: Move[]|null`、`interactive?: boolean`（回放中 false，关闭悬停预览与点击落子）。有 override 时按 override 渲染，否则按实时 `game` 渲染——**复用既有落子弹跳、最后一手脉冲、胜利流光动效**：step 变化时新出现的子走入场动画，脉冲标记定位到第 currentStep 手；仅 `currentStep===N` 且有胜者时传入 winLine |
-| **`src/components/ui/toast.tsx`** | 复用，导出成功/失败提示 |
-| **不动** | `src/lib/gomoku/ai.ts`（含调度）、`engine.ts`（history 已够用，只读消费） |
+| **`src/App.tsx`**                                                 | 新增回放状态（mode/currentStep/speedMs，建议独立 `useReplay` hook 放 `src/hooks/`）；底部控制条 ↔ 回放条切换；「回放」「导出棋谱」按钮；导出对话框；回放模式 badge 与侧栏降级；键盘事件（←/→/空格/Esc）；AI 思考中禁用回放入口                                      |
+| **`src/components/GameBoard.tsx`**                                | 新增可选 **override props**：`boardOverride?: Stone[]`、`lastMoveOverride?: Move                                                                                                                                                                                    | null`、`winLineOverride?: Move[] | null`、`interactive?: boolean`（回放中 false，关闭悬停预览与点击落子）。有 override 时按 override 渲染，否则按实时 `game`渲染——**复用既有落子弹跳、最后一手脉冲、胜利流光动效**：step 变化时新出现的子走入场动画，脉冲标记定位到第 currentStep 手；仅`currentStep===N` 且有胜者时传入 winLine |
+| **`src/components/ui/toast.tsx`**                                 | 复用，导出成功/失败提示                                                                                                                                                                                                                                             |
+| **不动**                                                          | `src/lib/gomoku/ai.ts`（含调度）、`engine.ts`（history 已够用，只读消费）                                                                                                                                                                                           |
 
 回放动效关键点（对齐 `design/fx-spec.md`）：单步前进时**只有新增的那颗子**播放入场弹跳；`goTo(k)` 大跨度跳转时不逐子重演（直接渲染目标盘面，仅目标手的子做一次入场 + 脉冲），避免拖动进度条时动画风暴。
 
@@ -295,6 +297,7 @@ ReplayMode = 'idle' | 'replaying-paused' | 'replaying-playing'
 ## 8. 验收清单（QA 视角）
 
 **回放 · 状态与边界**
+
 - [ ] `moveCount===0` 时「回放」按钮 disabled；落 1 手后可用
 - [ ] AI 思考中「回放」按钮 disabled，AI 落子后恢复
 - [ ] 进入回放：`currentStep=0` 空盘；实时对局数据不变；侧栏禁用且有「回放模式」标识
@@ -307,12 +310,14 @@ ReplayMode = 'idle' | 'replaying-paused' | 'replaying-playing'
 - [ ] 回放中点击棋盘不落子、无悬停预览；悔棋/重开不可达
 
 **回放 · 呈现**
+
 - [ ] 每步前进：仅新子播放入场动画 + 脉冲定位到该子
 - [ ] 当前手信息正确：手数/黑白/玩家-电脑/坐标；k=0 显示「开局 · 空盘」
 - [ ] 先手设置为 AI 时「玩家/电脑」标签正确反转
 - [ ] 移动端（<1024px）回放条两行布局，触控目标 ≥44px，不遮挡棋盘
 
 **导出**
+
 - [ ] `moveCount===0` 时导出入口 disabled 并有提示
 - [ ] SGF：GM/FF/CA/SZ/PB/PW/RE 头正确；坐标 a–o 先 x 后 y（(5,2)→`fc`，(7,7)→`hh`）；黑白交替无 PASS；主流 SGF 软件可打开
 - [ ] RE：黑胜 `B+W`、白胜 `W+W`、平局 `0`、未结束 `?`
@@ -322,11 +327,13 @@ ReplayMode = 'idle' | 'replaying-paused' | 'replaying-playing'
 - [ ] 对局进行中导出成功，RE 为 `?`
 
 **可访问性/降级**
+
 - [ ] reduced-motion 下：回放与导出路径无动画，功能完整
 - [ ] ←/→/空格/Esc 快捷键生效；文件名输入框聚焦时空格不触发播放
 - [ ] slider/按钮/对话框的 aria 属性与焦点管理符合 §7
 
 **约束红线**
+
 - [ ] `package.json` 无新增运行时依赖
 - [ ] `src/lib/gomoku/ai.ts` 零改动
 - [ ] 导出仅用 Blob + a[download] 原生能力

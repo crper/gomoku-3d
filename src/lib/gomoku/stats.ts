@@ -32,13 +32,7 @@ export interface AchievementDef {
   desc: string;
   /** lucide-react icon name, resolved in the UI layer */
   icon: string;
-  tone:
-    | "orange"
-    | "amber"
-    | "rose"
-    | "violet"
-    | "emerald"
-    | "sky";
+  tone: "orange" | "amber" | "rose" | "violet" | "emerald" | "sky";
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
@@ -182,7 +176,7 @@ export function isEarned(id: AchievementId, s: GameStats): boolean {
  *  achievements unlocked *by this game* (for celebration toasts). */
 export function recordResult(
   prev: GameStats,
-  r: GameResult
+  r: GameResult,
 ): { stats: GameStats; unlocked: AchievementDef[] } {
   const next: GameStats = { ...prev, games: prev.games + 1 };
   if (r.outcome === "win") {
@@ -190,9 +184,7 @@ export function recordResult(
     next.streak = prev.streak + 1;
     next.bestStreak = Math.max(prev.bestStreak, next.streak);
     next.fastestWinMoves =
-      prev.fastestWinMoves === null
-        ? r.moves
-        : Math.min(prev.fastestWinMoves, r.moves);
+      prev.fastestWinMoves === null ? r.moves : Math.min(prev.fastestWinMoves, r.moves);
     if (r.difficulty === "hard") next.beatHard = true;
     if (r.difficulty === "master") next.beatMaster = true;
   } else if (r.outcome === "loss") {

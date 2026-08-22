@@ -9,7 +9,7 @@ export function LanguageSwitcher() {
   const isZh = (i18n.resolvedLanguage ?? i18n.language ?? "zh").startsWith("zh");
 
   const toggle = () => {
-    i18n.changeLanguage(isZh ? "en" : "zh");
+    void i18n.changeLanguage(isZh ? "en" : "zh");
     play("ui_click");
   };
 

@@ -74,19 +74,14 @@ export default function ReplayPanel({
         player: pvp
           ? t("replay.player")
           : currentMove.player === humanColor
-          ? t("replay.player")
-          : t("replay.computer"),
+            ? t("replay.player")
+            : t("replay.computer"),
       }) + ` · (${currentMove.x}, ${currentMove.y})`
     : t("replay.opening");
 
   return (
     <Card className={cn("glass", compact && "shadow-[var(--shadow-float)]")}>
-      <CardContent
-        className={cn(
-          "flex flex-col",
-          compact ? "gap-2.5 p-3" : "gap-3 p-5"
-        )}
-      >
+      <CardContent className={cn("flex flex-col", compact ? "gap-2.5 p-3" : "gap-3 p-5")}>
         {/* header: badge + exit */}
         <div className="flex items-center justify-between">
           <Badge className="gap-1.5 bg-stone-800 text-white hover:bg-stone-800">
@@ -115,7 +110,7 @@ export default function ReplayPanel({
                 "h-3 w-3 shrink-0 rounded-full border",
                 currentMove.player === BLACK
                   ? "border-stone-800 bg-stone-800"
-                  : "border-stone-300 bg-white"
+                  : "border-stone-300 bg-white",
               )}
             />
           )}
@@ -164,11 +159,7 @@ export default function ReplayPanel({
             size="icon"
             className="h-11 w-11"
             aria-label={
-              playing
-                ? t("replay.pause")
-                : atEnd
-                  ? t("replay.replayAgain")
-                  : t("replay.play")
+              playing ? t("replay.pause") : atEnd ? t("replay.replayAgain") : t("replay.play")
             }
             aria-pressed={playing}
             onClick={replay.togglePlay}
@@ -234,29 +225,17 @@ export default function ReplayPanel({
             aria-label={t("replay.soundToggle")}
             onClick={onToggleMute}
           >
-            {muted ? (
-              <VolumeX className="h-4 w-4" />
-            ) : (
-              <Volume2 className="h-4 w-4" />
-            )}
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </Button>
           <Button
             size="icon"
             variant="ghost"
             className="h-10 w-10"
             aria-label={t("replay.view")}
-            title={
-              viewMode === "3d"
-                ? t("match.switchTo2d")
-                : t("match.switchTo3d")
-            }
+            title={viewMode === "3d" ? t("match.switchTo2d") : t("match.switchTo3d")}
             onClick={() => onSwitchView(viewMode === "3d" ? "2d" : "3d")}
           >
-            {viewMode === "2d" ? (
-              <Box className="h-4 w-4" />
-            ) : (
-              <Grid3x3 className="h-4 w-4" />
-            )}
+            {viewMode === "2d" ? <Box className="h-4 w-4" /> : <Grid3x3 className="h-4 w-4" />}
           </Button>
           <Button
             size="sm"

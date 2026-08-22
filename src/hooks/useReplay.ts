@@ -103,7 +103,7 @@ export function useReplay(game: GameState, thinking: boolean): UseReplayReturn {
       pause();
       setCurrentStep(Math.max(0, Math.min(nRef.current, Math.round(k))));
     },
-    [pause]
+    [pause],
   );
 
   const play = useCallback(() => {
@@ -145,7 +145,7 @@ export function useReplay(game: GameState, thinking: boolean): UseReplayReturn {
         currentMove: null,
       };
     }
-    const currentMove = currentStep === 0 ? null : moves[currentStep - 1] ?? null;
+    const currentMove = currentStep === 0 ? null : (moves[currentStep - 1] ?? null);
     const atEnd = currentStep === snapshot.moveCount;
     return {
       board: boardAtStep(snapshot, currentStep),

@@ -36,6 +36,7 @@ export const en: Resources = {
     moves: "Moves",
     time: "Time",
     hint: "Hover over a board intersection to preview a translucent stone and orange guide lines",
+    coordTitle: "Coordinates of the pointed intersection (columns A–O, rows 1–15 bottom-up)",
   },
   difficulty: {
     title: "Difficulty",

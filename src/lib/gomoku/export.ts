@@ -37,19 +37,15 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-export function buildMeta(
-  game: GameState,
-  humanColor: Player,
-  pvp = false
-): ExportMeta {
+export function buildMeta(game: GameState, humanColor: Player, pvp = false): ExportMeta {
   const result =
     game.status === "black_win"
       ? "B+W"
       : game.status === "white_win"
-      ? "W+W"
-      : game.status === "draw"
-      ? "0"
-      : "?";
+        ? "W+W"
+        : game.status === "draw"
+          ? "0"
+          : "?";
   const d = new Date();
   const date = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   const humanIsBlack = humanColor === BLACK;
@@ -112,7 +108,7 @@ export function toJSON(moves: ReplayMove[], meta: ExportMeta): string {
       })),
     },
     null,
-    2
+    2,
   );
 }
 
@@ -127,7 +123,7 @@ export function toTXT(moves: ReplayMove[], meta: ExportMeta): string {
 export function buildExportText(
   moves: ReplayMove[],
   meta: ExportMeta,
-  format: ExportFormat
+  format: ExportFormat,
 ): string {
   switch (format) {
     case "sgf":
@@ -154,11 +150,7 @@ export function defaultFileName(): string {
 }
 
 /** Native download: Blob + a[download]. No runtime dependency. */
-export function downloadTextFile(
-  filename: string,
-  text: string,
-  mime: string
-): void {
+export function downloadTextFile(filename: string, text: string, mime: string): void {
   const blob = new Blob([text], { type: mime + ";charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -178,7 +170,7 @@ export function exportGame(
   moves: ReplayMove[],
   meta: ExportMeta,
   format: ExportFormat,
-  baseName?: string
+  baseName?: string,
 ): { filename: string; text: string } {
   const base = sanitizeFileName(baseName ?? "") || defaultFileName();
   const text = buildExportText(moves, meta, format);

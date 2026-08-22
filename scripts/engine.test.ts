@@ -1,6 +1,5 @@
 import {
   Board,
-  Move,
   Player,
   BLACK,
   WHITE,
@@ -12,24 +11,27 @@ import {
 import * as engine from "../src/lib/gomoku/engine";
 import { getAIMove } from "../src/lib/gomoku/ai";
 
-let pass = 0;
-let fail = 0;
-function assert(cond: boolean, msg: string) {
-  if (cond) {
-    pass++;
-    console.log("  ok  -", msg);
-  } else {
-    fail++;
-    console.log("FAIL  -", msg);
-  }
-}
+import { test } from "vite-plus/test";
+
+/**
+ * Vitest harness: every legacy `assert(cond, msg)` registers a named test.
+ * All suites are synchronous — conditions are fully evaluated while the
+ * module loads, so this wrapper preserves the original semantics 1:1.
+ */
+const assert = (cond: boolean, msg: string) =>
+  test(msg, () => {
+    if (!cond) throw new Error(`assertion failed: ${msg}`);
+  });
 
 // ---------------------------------------------------------------------------
 // 1. placeStone boundary defenses (no throws, returns input unchanged)
 // ---------------------------------------------------------------------------
 {
   const g = engine.createGame();
-  assert(g.status === "playing" && g.currentPlayer === BLACK && g.history.length === 0, "createGame: empty board, BLACK to move");
+  assert(
+    g.status === "playing" && g.currentPlayer === BLACK && g.history.length === 0,
+    "createGame: empty board, BLACK to move",
+  );
 
   // out of bounds
   const oob = engine.placeStone(g, { x: -1, y: 0 }, BLACK);
@@ -42,7 +44,10 @@ function assert(cond: boolean, msg: string) {
 
   // normal move then repeat on the same cell
   let g2 = engine.placeStone(g, { x: 7, y: 7 }, BLACK);
-  assert(g2.board[idx(7, 7)] === BLACK && g2.currentPlayer === WHITE, "valid move writes stone and passes turn");
+  assert(
+    g2.board[idx(7, 7)] === BLACK && g2.currentPlayer === WHITE,
+    "valid move writes stone and passes turn",
+  );
   const repeat = engine.placeStone(g2, { x: 7, y: 7 }, WHITE);
   assert(repeat === g2, "repeat move on occupied cell returns the same state");
 
@@ -66,7 +71,10 @@ function assert(cond: boolean, msg: string) {
   assert(g.moveCount === 0, "undo reverts a full round back to 0 moves");
   assert(g.history.length === 0, "undo clears history");
   assert(g.currentPlayer === BLACK, "undo returns to the human's turn (BLACK)");
-  assert(g.board.every((c) => c === 0), "undo leaves an empty board");
+  assert(
+    g.board.every((c) => c === 0),
+    "undo leaves an empty board",
+  );
   assert(!engine.canUndo(g), "canUndo false on empty board");
 
   // undo on a finished game is a no-op
@@ -90,20 +98,29 @@ function assert(cond: boolean, msg: string) {
   const blocks =
     !!mBlock &&
     b[idx(mBlock.x, mBlock.y)] === 0 &&
-    ((mBlock.y === 7 && (mBlock.x === 2 || mBlock.x === 7)));
+    mBlock.y === 7 &&
+    (mBlock.x === 2 || mBlock.x === 7);
   assert(blocks, "master blocks BLACK's open four at an open end");
 
   // mid-game timing + legality
   const mid = createBoard();
   const seeds: [number, number, Player][] = [
-    [7, 7, BLACK], [7, 8, WHITE], [8, 7, BLACK], [6, 8, WHITE],
-    [8, 8, BLACK], [6, 7, WHITE], [9, 7, BLACK],
+    [7, 7, BLACK],
+    [7, 8, WHITE],
+    [8, 7, BLACK],
+    [6, 8, WHITE],
+    [8, 8, BLACK],
+    [6, 7, WHITE],
+    [9, 7, BLACK],
   ];
   for (const [x, y, p] of seeds) mid[idx(x, y)] = p;
   const t0 = performance.now();
   const mMid = getAIMove(mid, WHITE, "master");
   const dt = performance.now() - t0;
-  assert(!!mMid && mid[idx(mMid.x, mMid.y)] === 0, "master returns a legal (empty) move on mid-game board");
+  assert(
+    !!mMid && mid[idx(mMid.x, mMid.y)] === 0,
+    "master returns a legal (empty) move on mid-game board",
+  );
   assert(dt < 1000, `master move under 1s (took ${dt.toFixed(1)}ms)`);
 
   // full master vs master game must terminate without illegal moves
@@ -126,6 +143,3 @@ function assert(cond: boolean, msg: string) {
   const r = playMasterGame();
   assert(true, `master vs master terminated: winner=${r.winner} in ${r.moves} moves`);
 }
-
-console.log(`\n${pass} passed, ${fail} failed`);
-if (fail > 0) process.exit(1);

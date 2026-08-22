@@ -75,12 +75,7 @@ const DIRS: ReadonlyArray<[number, number]> = [
 ];
 
 /** Score of the shape formed by placing `player` at (x, y). */
-export function evaluatePoint(
-  board: Board,
-  x: number,
-  y: number,
-  player: Player
-): number {
+export function evaluatePoint(board: Board, x: number, y: number, player: Player): number {
   let total = 0;
   for (const [dx, dy] of DIRS) {
     total += bestPatternInLine(directionLine(board, x, y, dx, dy, player));
@@ -98,7 +93,7 @@ function directionLine(
   y: number,
   dx: number,
   dy: number,
-  player: Player
+  player: Player,
 ): string {
   let line = "";
   for (let i = -4; i <= 4; i++) {
@@ -127,12 +122,7 @@ function wouldWin(board: Board, m: Move, player: Player): boolean {
   return win;
 }
 
-function moveScore(
-  board: Board,
-  m: Move,
-  player: Player,
-  defWeight: number
-): number {
+function moveScore(board: Board, m: Move, player: Player, defWeight: number): number {
   const offense = evaluatePoint(board, m.x, m.y, player);
   const defense = evaluatePoint(board, m.x, m.y, opponent(player));
   return offense + defWeight * defense;
@@ -155,12 +145,7 @@ interface DirThreat {
 }
 
 /** Classify the threats `player` creates by playing at (x, y). Pure. */
-function classifyPlacement(
-  board: Board,
-  x: number,
-  y: number,
-  player: Player
-): DirThreat {
+function classifyPlacement(board: Board, x: number, y: number, player: Player): DirThreat {
   const t: DirThreat = { five: 0, openFour: 0, four: 0, openThree: 0 };
   for (const [dx, dy] of DIRS) {
     const s = bestPatternInLine(directionLine(board, x, y, dx, dy, player));
@@ -195,11 +180,7 @@ export function immediateWinCells(board: Board, player: Player): Move[] {
  * our next turn, provided the opponent has no winning cell right now (which
  * the caller's earlier rules ensure).
  */
-function guaranteedWinMove(
-  board: Board,
-  candidates: Move[],
-  player: Player
-): Move | null {
+function guaranteedWinMove(board: Board, candidates: Move[], player: Player): Move | null {
   for (const m of candidates) {
     board[idx(m.x, m.y)] = player;
     const wins = immediateWinCells(board, player).length;
@@ -214,11 +195,7 @@ function guaranteedWinMove(
  * (double open three, four + open three, …). The defender can only answer one
  * per turn, so these usually must be occupied as they appear.
  */
-function forkPoints(
-  board: Board,
-  candidates: Move[],
-  player: Player
-): Move[] {
+function forkPoints(board: Board, candidates: Move[], player: Player): Move[] {
   const res: Move[] = [];
   for (const m of candidates) {
     const t = classifyPlacement(board, m.x, m.y, player);
@@ -229,12 +206,7 @@ function forkPoints(
   return res;
 }
 
-function greedy(
-  board: Board,
-  candidates: Move[],
-  player: Player,
-  defWeight: number
-): Move {
+function greedy(board: Board, candidates: Move[], player: Player, defWeight: number): Move {
   let best = candidates[0];
   let bestScore = -Infinity;
   for (const m of candidates) {
@@ -252,7 +224,7 @@ function search2Ply(
   candidates: Move[],
   player: Player,
   defWeight: number,
-  K: number
+  K: number,
 ): Move {
   const opp = opponent(player);
   const scored = candidates
@@ -380,7 +352,7 @@ function nodePool(
   player: Player,
   defWeight: number,
   K: number,
-  depth: number
+  depth: number,
 ): { pool: Move[]; nextDepth: number } {
   const opp = opponent(player);
   const oppWins = immediateWinCells(board, opp);
@@ -422,7 +394,7 @@ function negamax(
   K: number,
   alpha: number,
   beta: number,
-  budget: Budget
+  budget: Budget,
 ): number {
   budget.nodes++;
   const { pool, nextDepth } = nodePool(board, player, defWeight, K, depth);
@@ -440,16 +412,7 @@ function negamax(
       // budget blown mid-line: fall back to a static read of the child
       val = -evaluateBoard(board, opponent(player), defWeight);
     } else {
-      val = -negamax(
-        board,
-        opponent(player),
-        defWeight,
-        nextDepth,
-        K,
-        -beta,
-        -alpha,
-        budget
-      );
+      val = -negamax(board, opponent(player), defWeight, nextDepth, K, -beta, -alpha, budget);
     }
     board[idx(m.x, m.y)] = 0;
     if (val > best) best = val;
@@ -471,7 +434,7 @@ function searchMaster(
   candidates: Move[],
   player: Player,
   defWeight: number,
-  K: number
+  K: number,
 ): Move {
   const opp = opponent(player);
   const budget: Budget = {
@@ -497,16 +460,7 @@ function searchMaster(
     if (checkWinFrom(board, m.x, m.y, player)) {
       val = WIN;
     } else {
-      val = -negamax(
-        board,
-        opp,
-        defWeight,
-        DEPTH,
-        DEEP_K,
-        -Infinity,
-        Infinity,
-        budget
-      );
+      val = -negamax(board, opp, defWeight, DEPTH, DEEP_K, -Infinity, Infinity, budget);
     }
     board[idx(m.x, m.y)] = 0;
     if (val > bestScore) {
@@ -527,11 +481,7 @@ function searchMaster(
  * Then the difficulty-specific search. Returns `null` only when no candidate
  * exists (a full board → caller should declare a draw).
  */
-export function getAIMove(
-  board: Board,
-  player: Player,
-  difficulty: Difficulty
-): Move | null {
+export function getAIMove(board: Board, player: Player, difficulty: Difficulty): Move | null {
   const candidates = getCandidateMoves(board);
   if (candidates.length === 0) return null;
 
@@ -587,9 +537,7 @@ export function getAIMove(
   if (difficulty === "master") {
     let pool = candidates;
     if (oppForks.length > 0) {
-      const keep = new Set<number>(
-        oppForks.map((m) => idx(m.x, m.y))
-      );
+      const keep = new Set<number>(oppForks.map((m) => idx(m.x, m.y)));
       for (const m of candidates) {
         const t = classifyPlacement(board, m.x, m.y, player);
         if (t.five > 0 || t.openFour > 0 || t.four > 0 || t.openThree > 0) {

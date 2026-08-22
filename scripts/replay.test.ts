@@ -11,17 +11,17 @@ import {
   resultToChinese,
 } from "../src/lib/gomoku/export";
 
-let pass = 0;
-let fail = 0;
-function assert(cond: boolean, msg: string) {
-  if (cond) {
-    pass++;
-    console.log("  ok  -", msg);
-  } else {
-    fail++;
-    console.log("FAIL  -", msg);
-  }
-}
+import { test } from "vite-plus/test";
+
+/**
+ * Vitest harness: every legacy `assert(cond, msg)` registers a named test.
+ * All suites are synchronous — conditions are fully evaluated while the
+ * module loads, so this wrapper preserves the original semantics 1:1.
+ */
+const assert = (cond: boolean, msg: string) =>
+  test(msg, () => {
+    if (!cond) throw new Error(`assertion failed: ${msg}`);
+  });
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -46,20 +46,35 @@ game = engine.placeStone(game, { x: 7, y: 6 }, BLACK);
   const moves = deriveMoves(game);
   assert(moves.length === 3, "deriveMoves returns 3 moves");
   assert(
-    moves[0].index === 1 && moves[0].x === 7 && moves[0].y === 7 && moves[0].player === BLACK && moves[0].label === "黑",
-    "move 1 = black (7,7)"
+    moves[0].index === 1 &&
+      moves[0].x === 7 &&
+      moves[0].y === 7 &&
+      moves[0].player === BLACK &&
+      moves[0].label === "黑",
+    "move 1 = black (7,7)",
   );
   assert(
-    moves[1].index === 2 && moves[1].x === 8 && moves[1].y === 8 && moves[1].player === WHITE && moves[1].label === "白",
-    "move 2 = white (8,8)"
+    moves[1].index === 2 &&
+      moves[1].x === 8 &&
+      moves[1].y === 8 &&
+      moves[1].player === WHITE &&
+      moves[1].label === "白",
+    "move 2 = white (8,8)",
   );
   assert(
-    moves[2].index === 3 && moves[2].x === 7 && moves[2].y === 6 && moves[2].player === BLACK && moves[2].label === "黑",
-    "move 3 = black (7,6)"
+    moves[2].index === 3 &&
+      moves[2].x === 7 &&
+      moves[2].y === 6 &&
+      moves[2].player === BLACK &&
+      moves[2].label === "黑",
+    "move 3 = black (7,6)",
   );
 
   const b0 = boardAtStep(game, 0);
-  assert(b0.every((c) => c === 0), "boardAtStep(0) is an empty board");
+  assert(
+    b0.every((c) => c === 0),
+    "boardAtStep(0) is an empty board",
+  );
   assert(b0.length === createBoard().length, "boardAtStep(0) has 225 cells");
 
   const b1 = boardAtStep(game, 1);
@@ -69,7 +84,7 @@ game = engine.placeStone(game, { x: 7, y: 6 }, BLACK);
   const b2 = boardAtStep(game, 2);
   assert(
     b2[idx(7, 7)] === BLACK && b2[idx(8, 8)] === WHITE && b2[idx(7, 6)] === 0,
-    "boardAtStep(2) has moves 1-2 but not move 3"
+    "boardAtStep(2) has moves 1-2 but not move 3",
   );
 
   const b3 = boardAtStep(game, 3);
@@ -80,10 +95,13 @@ game = engine.placeStone(game, { x: 7, y: 6 }, BLACK);
   const snapMoves = deriveMoves(snap);
   assert(
     JSON.stringify(snapMoves) === JSON.stringify(moves),
-    "deriveMoves(snapshot) === deriveMoves(game)"
+    "deriveMoves(snapshot) === deriveMoves(game)",
   );
   const afterSnap = engine.placeStone(game, { x: 9, y: 9 }, WHITE);
-  assert(afterSnap.moveCount === 4 && snap.moveCount === 3, "snapshot is immune to later live moves");
+  assert(
+    afterSnap.moveCount === 4 && snap.moveCount === 3,
+    "snapshot is immune to later live moves",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +109,10 @@ game = engine.placeStone(game, { x: 7, y: 6 }, BLACK);
 // ---------------------------------------------------------------------------
 {
   const meta = buildMeta(game, BLACK);
-  assert(meta.blackName === "玩家" && meta.whiteName === "电脑", "meta: human black -> PB=玩家 PW=电脑");
+  assert(
+    meta.blackName === "玩家" && meta.whiteName === "电脑",
+    "meta: human black -> PB=玩家 PW=电脑",
+  );
   assert(meta.result === "?", "meta: ongoing game -> RE ?");
   assert(meta.boardSize === 15 && meta.moveCount === 3, "meta: boardSize 15, moveCount 3");
   assert(meta.date === localDate(), "meta: local date YYYY-MM-DD");
@@ -103,7 +124,10 @@ game = engine.placeStone(game, { x: 7, y: 6 }, BLACK);
 
   // reversed colors: human plays white
   const metaW = buildMeta(game, WHITE);
-  assert(metaW.blackName === "电脑" && metaW.whiteName === "玩家", "meta: human white -> PB=电脑 PW=玩家");
+  assert(
+    metaW.blackName === "电脑" && metaW.whiteName === "玩家",
+    "meta: human white -> PB=电脑 PW=玩家",
+  );
 
   // finished game result mapping
   const asBlackWin = { ...game, status: "black_win" as const };
@@ -112,7 +136,10 @@ game = engine.placeStone(game, { x: 7, y: 6 }, BLACK);
   assert(buildMeta(asBlackWin, BLACK).result === "B+W", "RE: black_win -> B+W");
   assert(buildMeta(asWhiteWin, BLACK).result === "W+W", "RE: white_win -> W+W");
   assert(buildMeta(asDraw, BLACK).result === "0", "RE: draw -> 0");
-  assert(resultToChinese("B+W") === "黑胜" && resultToChinese("?") === "未结束", "result Chinese mapping");
+  assert(
+    resultToChinese("B+W") === "黑胜" && resultToChinese("?") === "未结束",
+    "result Chinese mapping",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -127,21 +154,33 @@ game = engine.placeStone(game, { x: 7, y: 6 }, BLACK);
     moves: { index: number; x: number; y: number; player: number; label: string }[];
   };
   assert(parsed.moves.length === 3, "toJSON: parses back with 3 moves");
-  assert(parsed.moves[0].index === 1 && parsed.moves[0].player === 1, "toJSON: index starts at 1, player 1=black");
-  assert(parsed.meta.boardSize === 15 && parsed.meta.blackName === "玩家", "toJSON: meta fields present");
+  assert(
+    parsed.moves[0].index === 1 && parsed.moves[0].player === 1,
+    "toJSON: index starts at 1, player 1=black",
+  );
+  assert(
+    parsed.meta.boardSize === 15 && parsed.meta.blackName === "玩家",
+    "toJSON: meta fields present",
+  );
 
   const txt = toTXT(moves, meta);
   const lines = txt.trimEnd().split("\n");
   assert(lines.length === 4, "toTXT: header + 3 move lines");
-  assert(lines[0].includes("五子棋棋谱") && lines[0].includes("结果：未结束"), "toTXT: header line");
-  assert(lines[1] === "1. 黑 (7,7)" && lines[2] === "2. 白 (8,8)" && lines[3] === "3. 黑 (7,6)", "toTXT: move lines format");
+  assert(
+    lines[0].includes("五子棋棋谱") && lines[0].includes("结果：未结束"),
+    "toTXT: header line",
+  );
+  assert(
+    lines[1] === "1. 黑 (7,7)" && lines[2] === "2. 白 (8,8)" && lines[3] === "3. 黑 (7,6)",
+    "toTXT: move lines format",
+  );
 }
 
 // ---------------------------------------------------------------------------
 // 4. sanitizeFileName / defaultFileName
 // ---------------------------------------------------------------------------
 {
-  assert(sanitizeFileName('a/b:c*') === "a-b-c-", 'sanitizeFileName("a/b:c*") === "a-b-c-"');
+  assert(sanitizeFileName("a/b:c*") === "a-b-c-", 'sanitizeFileName("a/b:c*") === "a-b-c-"');
   assert(sanitizeFileName('x?"<>|\\y') === "x------y", "sanitizeFileName strips all illegal chars");
   assert(sanitizeFileName("") === "", "sanitizeFileName keeps empty string empty");
 
@@ -164,8 +203,8 @@ game = engine.placeStone(game, { x: 7, y: 6 }, BLACK);
 
   const g0 = engine.createGame();
   assert(deriveMoves(g0).length === 0, "empty game derives zero moves");
-  assert(boardAtStep(g0, 0).every((c) => c === 0), "empty game boardAtStep(0) empty");
+  assert(
+    boardAtStep(g0, 0).every((c) => c === 0),
+    "empty game boardAtStep(0) empty",
+  );
 }
-
-console.log(`\n${pass} passed, ${fail} failed`);
-if (fail > 0) process.exit(1);

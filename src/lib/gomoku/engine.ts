@@ -58,11 +58,7 @@ export function createGame(): GameState {
  * state unchanged (no throw): not your turn, game already over, out of bounds,
  * or the cell is occupied.
  */
-export function placeStone(
-  state: GameState,
-  move: Move,
-  player: Player
-): GameState {
+export function placeStone(state: GameState, move: Move, player: Player): GameState {
   if (state.status !== "playing") return state;
   if (player !== state.currentPlayer) return state;
   if (!validateMove(state.board, move)) return state;

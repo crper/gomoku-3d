@@ -9,14 +9,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground shadow hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline:
           "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
@@ -31,12 +28,11 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   /** Disable the click ripple effect (e.g. for asChild wrappers). */
   noRipple?: boolean;
@@ -52,7 +48,7 @@ interface Ripple {
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     { className, variant, size, asChild = false, noRipple = false, onClick, children, ...props },
-    ref
+    ref,
   ) => {
     const [ripples, setRipples] = React.useState<Ripple[]>([]);
 
@@ -65,10 +61,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         const y = e.clientY - rect.top - size / 2;
         const id = performance.now() + Math.random();
         setRipples((r) => [...r, { id, x, y, size }]);
-        window.setTimeout(
-          () => setRipples((r) => r.filter((rp) => rp.id !== id)),
-          600
-        );
+        window.setTimeout(() => setRipples((r) => r.filter((rp) => rp.id !== id)), 600);
       }
       onClick?.(e);
     };
@@ -81,7 +74,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           buttonVariants({ variant, size }),
           "relative overflow-hidden transition-transform duration-150 active:scale-[0.97] active:duration-75",
-          className
+          className,
         )}
         {...props}
       >
@@ -89,9 +82,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           children
         ) : (
           <>
-            <span className="relative z-10 inline-flex items-center gap-2">
-              {children}
-            </span>
+            <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
             <span className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[inherit]">
               {ripples.map((r) => (
                 <span
@@ -110,7 +101,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         )}
       </Comp>
     );
-  }
+  },
 );
 Button.displayName = "Button";
 

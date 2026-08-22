@@ -1,6 +1,5 @@
 import {
   Board,
-  Move,
   Player,
   BLACK,
   WHITE,
@@ -14,10 +13,7 @@ import { getAIMove, type Difficulty } from "../src/lib/gomoku/ai";
 
 /** Play one full game. blackDiff / whiteDiff select the tier for each color.
  *  Returns the winner (1=BLACK, 2=WHITE, 0=draw) and move count. */
-function playGame(
-  blackDiff: Difficulty,
-  whiteDiff: Difficulty
-): { winner: number; moves: number } {
+function playGame(blackDiff: Difficulty, whiteDiff: Difficulty): { winner: number; moves: number } {
   const board: Board = createBoard();
   let cur: Player = BLACK;
   let moves = 0;
@@ -35,8 +31,7 @@ function playGame(
   return { winner: 0, moves };
 }
 
-const winnerLabel = (w: number): string =>
-  w === 1 ? "BLACK" : w === 2 ? "WHITE" : "DRAW";
+const winnerLabel = (w: number): string => (w === 1 ? "BLACK" : w === 2 ? "WHITE" : "DRAW");
 
 const MASTER: Difficulty = "master";
 const others: Difficulty[] = ["easy", "medium", "hard"];
@@ -54,17 +49,17 @@ interface Result {
 
 const results: Record<string, Result> = {};
 
-let pass = 0;
-let fail = 0;
-function check(cond: boolean, msg: string) {
-  if (cond) {
-    pass++;
-    console.log("  ok  -", msg);
-  } else {
-    fail++;
-    console.log("FAIL  -", msg);
-  }
-}
+import { test } from "vite-plus/test";
+
+/**
+ * Vitest harness: every legacy `check(cond, msg)` registers a named test.
+ * The matrix runs synchronously at module load, so this wrapper preserves
+ * the original semantics 1:1.
+ */
+const check = (cond: boolean, msg: string) =>
+  test(msg, () => {
+    if (!cond) throw new Error(`assertion failed: ${msg}`);
+  });
 
 console.log("=== Strength matrix: master vs tier, both colors ===");
 for (const other of others) {
@@ -100,9 +95,7 @@ for (const other of others) {
     };
 
     const detail = other === "easy" ? `(easy x${EASY_RUNS}: W${aggW}/D${aggD}/L${aggL})` : "";
-    console.log(
-      `  ${tag.padEnd(34)} -> ${winnerLabel(lastWinner).padEnd(6)} ${detail}`
-    );
+    console.log(`  ${tag.padEnd(34)} -> ${winnerLabel(lastWinner).padEnd(6)} ${detail}`);
   }
 }
 
@@ -127,7 +120,7 @@ for (const other of ["easy", "medium"] as Difficulty[]) {
   const wonOne = rb.w > 0 || rw.w > 0;
   check(
     wonOne,
-    `master beats hard in at least one color direction (B:W${rb.w}/D${rb.d}/L${rb.l}, W:W${rw.w}/D${rw.d}/L${rw.l})`
+    `master beats hard in at least one color direction (B:W${rb.w}/D${rb.d}/L${rb.l}, W:W${rw.w}/D${rw.d}/L${rw.l})`,
   );
 }
 
@@ -135,8 +128,15 @@ for (const other of ["easy", "medium"] as Difficulty[]) {
 {
   const mid = createBoard();
   const seeds: [number, number, Player][] = [
-    [7, 7, BLACK], [7, 8, WHITE], [8, 7, BLACK], [6, 8, WHITE],
-    [8, 8, BLACK], [6, 7, WHITE], [9, 7, BLACK], [9, 8, WHITE], [5, 7, BLACK],
+    [7, 7, BLACK],
+    [7, 8, WHITE],
+    [8, 7, BLACK],
+    [6, 8, WHITE],
+    [8, 8, BLACK],
+    [6, 7, WHITE],
+    [9, 7, BLACK],
+    [9, 8, WHITE],
+    [5, 7, BLACK],
   ];
   for (const [x, y, p] of seeds) mid[idx(x, y)] = p;
   const t0 = performance.now();
@@ -144,6 +144,3 @@ for (const other of ["easy", "medium"] as Difficulty[]) {
   const dt = performance.now() - t0;
   check(!!m && dt < 1000, `master single move < 1s (took ${dt.toFixed(1)}ms)`);
 }
-
-console.log(`\n${pass} passed, ${fail} failed`);
-if (fail > 0) process.exit(1);

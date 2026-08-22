@@ -13,18 +13,19 @@ import {
 } from "../src/lib/gomoku/types";
 import * as engine from "../src/lib/gomoku/engine";
 import { getAIMove, getHintMove, immediateWinCells, type Difficulty } from "../src/lib/gomoku/ai";
+import { colName, rowName, coordName } from "../src/lib/gomoku/coords";
 
-let pass = 0;
-let fail = 0;
-function assert(cond: boolean, msg: string) {
-  if (cond) {
-    pass++;
-    console.log("  ok  -", msg);
-  } else {
-    fail++;
-    console.log("FAIL  -", msg);
-  }
-}
+import { test } from "vite-plus/test";
+
+/**
+ * Vitest harness: every legacy `assert(cond, msg)` registers a named test.
+ * All suites are synchronous — conditions are fully evaluated while the
+ * module loads, so this wrapper preserves the original semantics 1:1.
+ */
+const assert = (cond: boolean, msg: string) =>
+  test(msg, () => {
+    if (!cond) throw new Error(`assertion failed: ${msg}`);
+  });
 
 function now(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -66,10 +67,8 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
   ]);
   const wins2 = immediateWinCells(b2, BLACK);
   assert(
-    wins2.length === 2 &&
-      wins2.some((m) => isMove(m, 3, 7)) &&
-      wins2.some((m) => isMove(m, 8, 7)),
-    "open four yields both end cells as immediate wins"
+    wins2.length === 2 && wins2.some((m) => isMove(m, 3, 7)) && wins2.some((m) => isMove(m, 8, 7)),
+    "open four yields both end cells as immediate wins",
   );
 
   // one end blocked -> single winning cell
@@ -81,10 +80,7 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
     [7, 7, BLACK],
   ]);
   const wins3 = immediateWinCells(b3, BLACK);
-  assert(
-    wins3.length === 1 && isMove(wins3[0], 8, 7),
-    "blocked four yields a single winning cell"
-  );
+  assert(wins3.length === 1 && isMove(wins3[0], 8, 7), "blocked four yields a single winning cell");
 }
 
 // ---------------------------------------------------------------------------
@@ -102,10 +98,7 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
   ]);
   for (const d of ALL_TIERS) {
     const m = getAIMove(board, WHITE, d);
-    assert(
-      !!m && (isMove(m, 4, 7) || isMove(m, 9, 7)),
-      `${d}: takes the immediate win`
-    );
+    assert(!!m && (isMove(m, 4, 7) || isMove(m, 9, 7)), `${d}: takes the immediate win`);
   }
 }
 
@@ -123,10 +116,7 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
   ]);
   for (const d of ALL_TIERS) {
     const m = getAIMove(board, WHITE, d);
-    assert(
-      !!m && (isMove(m, 4, 7) || isMove(m, 9, 7)),
-      `${d}: blocks the opponent's winning cell`
-    );
+    assert(!!m && (isMove(m, 4, 7) || isMove(m, 9, 7)), `${d}: blocks the opponent's winning cell`);
   }
 }
 
@@ -145,7 +135,7 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
     const m = getAIMove(board, WHITE, d);
     assert(
       !!m && (isMove(m, 4, 7) || isMove(m, 8, 7)),
-      `${d}: converts the open three into an open four`
+      `${d}: converts the open three into an open four`,
     );
   }
 }
@@ -165,7 +155,7 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
     const m = getAIMove(board, WHITE, d);
     assert(
       !!m && (isMove(m, 4, 7) || isMove(m, 8, 7)),
-      `${d}: defends against the opponent's open three end`
+      `${d}: defends against the opponent's open three end`,
     );
   }
 }
@@ -207,12 +197,18 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
   const t0 = now();
   const m = getAIMove(board, WHITE, "master");
   const dt = now() - t0;
-  assert(!!m && m.x >= 4 && m.x <= 8 && m.y === 7, `master finds a winning move on row 7 (${m?.x},${m?.y})`);
+  assert(
+    !!m && m.x >= 4 && m.x <= 8 && m.y === 7,
+    `master finds a winning move on row 7 (${m?.x},${m?.y})`,
+  );
   assert(dt < 1000, `master stays inside the time budget on tactical boards (${dt.toFixed(1)}ms)`);
 
   // determinism: same position -> same suggestion twice
   const m2 = getAIMove(board, WHITE, "master");
-  assert(!!m && !!m2 && m.x === m2.x && m.y === m2.y, "master is deterministic on the same position");
+  assert(
+    !!m && !!m2 && m.x === m2.x && m.y === m2.y,
+    "master is deterministic on the same position",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +223,10 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
     [0, 0, WHITE],
   ]);
   const h = getHintMove(board, BLACK);
-  assert(!!h && (isMove(h, 4, 7) || isMove(h, 9, 7)), "hint plays the winning move when one exists");
+  assert(
+    !!h && (isMove(h, 4, 7) || isMove(h, 9, 7)),
+    "hint plays the winning move when one exists",
+  );
 
   const empty = createBoard();
   const h2 = getHintMove(empty, BLACK);
@@ -263,7 +262,28 @@ const TACTICAL_TIERS: Difficulty[] = ["medium", "hard", "master"];
 }
 
 // ---------------------------------------------------------------------------
+// 10. coordinate naming (Renju convention: A–O left→right, 1–15 bottom-up)
+// ---------------------------------------------------------------------------
+{
+  assert(coordName(7, 7) === "H8", "centre intersection reads H8");
+  assert(coordName(0, 0) === "A15", "top-left corner reads A15");
+  assert(coordName(14, 14) === "O1", "bottom-right corner reads O1");
+  assert(coordName(0, 7) === "A8", "left edge middle reads A8");
+  assert(colName(14) === "O" && colName(0) === "A", "column letters span A..O");
+  assert(rowName(0) === "15" && rowName(14) === "1", "row numbers grow upward");
+  // round-trip over every intersection: names are unique and well-formed
+  const seen = new Set<string>();
+  let ok = true;
+  for (let y = 0; y < 15; y++) {
+    for (let x = 0; x < 15; x++) {
+      const n = coordName(x, y);
+      if (!/^[A-O](1[0-5]|[1-9])$/.test(n)) ok = false;
+      seen.add(n);
+    }
+  }
+  assert(ok && seen.size === 225, "all 225 intersections have unique valid names");
+}
+
+// ---------------------------------------------------------------------------
 // summary
 // ---------------------------------------------------------------------------
-console.log(`\n${pass} passed, ${fail} failed`);
-if (fail > 0) process.exit(1);

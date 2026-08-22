@@ -117,9 +117,7 @@ export default function ExportDialog({
         className="relative w-full max-w-sm rounded-2xl border border-white/60 bg-white/95 p-5 shadow-[var(--shadow-float)] backdrop-blur-md"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-stone-800">
-            {t("export.title")}
-          </h2>
+          <h2 className="text-base font-semibold text-stone-800">{t("export.title")}</h2>
           <Button
             size="icon"
             variant="ghost"
@@ -133,9 +131,7 @@ export default function ExportDialog({
 
         {/* format */}
         <fieldset className="mb-4">
-          <legend className="mb-2 text-sm font-medium text-stone-600">
-            {t("export.format")}
-          </legend>
+          <legend className="mb-2 text-sm font-medium text-stone-600">{t("export.format")}</legend>
           <div className="flex flex-col gap-2">
             {FORMATS.map((f) => (
               <label
@@ -144,7 +140,7 @@ export default function ExportDialog({
                   "flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2 transition-colors",
                   format === f.id
                     ? "border-orange-400 bg-orange-50"
-                    : "border-stone-200 bg-white/70 hover:bg-stone-50"
+                    : "border-stone-200 bg-white/70 hover:bg-stone-50",
                 )}
               >
                 <input
@@ -156,9 +152,7 @@ export default function ExportDialog({
                 />
                 <span className="text-sm">
                   <b className="text-stone-800">{f.name}</b>
-                  <span className="ml-1.5 text-xs text-stone-500">
-                    {t(`export.${f.id}.desc`)}
-                  </span>
+                  <span className="ml-1.5 text-xs text-stone-500">{t(`export.${f.id}.desc`)}</span>
                 </span>
               </label>
             ))}
@@ -183,9 +177,7 @@ export default function ExportDialog({
               className="min-w-0 flex-1 bg-transparent text-sm text-stone-800 outline-none"
               aria-label={t("export.filenameLabel")}
             />
-            <span className="shrink-0 text-sm text-stone-400">
-              {EXT[format]}
-            </span>
+            <span className="shrink-0 text-sm text-stone-400">{EXT[format]}</span>
           </div>
         </div>
 

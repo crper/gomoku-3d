@@ -36,12 +36,8 @@ export function Toaster({ items, onDismiss }: ToasterProps) {
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-stone-800">
-              {t.title}
-            </div>
-            {t.desc && (
-              <div className="truncate text-xs text-stone-500">{t.desc}</div>
-            )}
+            <div className="text-sm font-semibold text-stone-800">{t.title}</div>
+            {t.desc && <div className="truncate text-xs text-stone-500">{t.desc}</div>}
           </div>
           <button
             onClick={() => onDismiss(t.id)}

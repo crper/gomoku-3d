@@ -9,11 +9,7 @@ export interface Move {
   y: number;
 }
 
-export type GameStatus =
-  | "playing"
-  | "black_win"
-  | "white_win"
-  | "draw";
+export type GameStatus = "playing" | "black_win" | "white_win" | "draw";
 
 export const EMPTY: Stone = 0;
 export const BLACK: Player = 1;
@@ -27,7 +23,7 @@ export function opponent(p: Player): Player {
 export type Board = Stone[];
 
 export function createBoard(): Board {
-  return new Array<Stone>(BOARD_SIZE * BOARD_SIZE).fill(EMPTY);
+  return Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => EMPTY);
 }
 
 export function idx(x: number, y: number): number {
@@ -63,12 +59,7 @@ const DIRS: ReadonlyArray<[number, number]> = [
  * Check whether placing `player` at (x, y) produces a win.
  * Call AFTER the stone has been written to the board.
  */
-export function checkWinFrom(
-  board: Board,
-  x: number,
-  y: number,
-  player: Player
-): boolean {
+export function checkWinFrom(board: Board, x: number, y: number, player: Player): boolean {
   for (const [dx, dy] of DIRS) {
     let count = 1;
     // forward
@@ -100,12 +91,7 @@ export function isFull(board: Board): boolean {
  * Return the consecutive run (>=5) that makes `player` win at (x, y).
  * Used to highlight the winning line. Returns [] if not a win.
  */
-export function getWinningLine(
-  board: Board,
-  x: number,
-  y: number,
-  player: Player
-): Move[] {
+export function getWinningLine(board: Board, x: number, y: number, player: Player): Move[] {
   for (const [dx, dy] of DIRS) {
     const cells: Move[] = [{ x, y }];
     let nx = x + dx;
@@ -128,10 +114,7 @@ export function getWinningLine(
 }
 
 /** All empty cells adjacent (within radius) to an existing stone. */
-export function getCandidateMoves(
-  board: Board,
-  radius = 2
-): Move[] {
+export function getCandidateMoves(board: Board, radius = 2): Move[] {
   const seen = new Set<number>();
   const moves: Move[] = [];
   let hasStone = false;

@@ -1,5 +1,4 @@
-import * as React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   RotateCcw,
@@ -21,26 +20,17 @@ import {
   Grid3x3,
   Film,
   Download,
-  Home,
   X,
-  Play,
-  Pause,
-  ChevronLeft,
-  ChevronRight,
-  SkipBack,
-  SkipForward,
   type LucideIcon,
 } from "lucide-react";
 
 import GameBoard from "@/components/GameBoard";
+import { AnimatedNumber } from "@/components/game/AnimatedNumber";
+import { Confetti } from "@/components/game/Confetti";
+import { GameOverOverlay, type GameResult } from "@/components/game/GameOverOverlay";
+import { ReplayQuickBar } from "@/components/game/ReplayQuickBar";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -50,239 +40,16 @@ import { Toaster } from "@/components/ui/toast";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useGomoku, type GameMode } from "@/hooks/useGomoku";
 import { useViewMode, type ViewMode } from "@/hooks/useViewMode";
-import { useReplay, type UseReplayReturn } from "@/hooks/useReplay";
+import { useReplay } from "@/hooks/useReplay";
+import { useParallax } from "@/hooks/useParallax";
 import ReplayPanel from "@/components/ReplayPanel";
 import ExportDialog from "@/components/ExportDialog";
 import { play } from "@/lib/audio/sfx";
-import {
-  ACHIEVEMENTS,
-  isEarned,
-  TONE_CLASSES,
-} from "@/lib/gomoku/stats";
+import { ACHIEVEMENTS, isEarned, TONE_CLASSES } from "@/lib/gomoku/stats";
 import { ACH_ICON } from "@/lib/achievementIcons";
 import { type Difficulty } from "@/lib/gomoku/ai";
-import { BLACK, WHITE, type Player } from "@/lib/gomoku/types";
-
-/** Tween an integer from its previous value to the new one. */
-function AnimatedNumber({ value }: { value: number }) {
-  const [disp, setDisp] = useState(value);
-  const fromRef = useRef(value);
-  useEffect(() => {
-    const from = fromRef.current;
-    if (from === value) return;
-    const start = performance.now();
-    const dur = 500;
-    let raf = 0;
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / dur);
-      const e = 1 - Math.pow(1 - p, 3);
-      setDisp(Math.round(from + (value - from) * e));
-      if (p < 1) raf = requestAnimationFrame(tick);
-      else fromRef.current = value;
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [value]);
-  return <span>{disp}</span>;
-}
-
-/** One-shot celebratory burst, rendered when the title is clicked or the player wins. */
-function Confetti() {
-  const pieces = useMemo(
-    () =>
-      Array.from({ length: 26 }, () => {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 90 + Math.random() * 180;
-        const palette = [
-          "#f97316",
-          "#f59e0b",
-          "#ef4444",
-          "#8b5cf6",
-          "#10b981",
-          "#0ea5e9",
-        ];
-        return {
-          left: 50 + (Math.random() * 22 - 11),
-          cx: Math.cos(angle) * dist,
-          cy: Math.sin(angle) * dist - 30,
-          color: palette[Math.floor(Math.random() * palette.length)],
-          delay: Math.random() * 0.18,
-          w: 6 + Math.random() * 6,
-          h: 4 + Math.random() * 5,
-        };
-      }),
-    []
-  );
-  return (
-    <div className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center overflow-hidden">
-      {pieces.map((p, i) => (
-        <span
-          key={i}
-          className="absolute rounded-[2px]"
-          style={
-            {
-              left: `${p.left}%`,
-              top: "50%",
-              width: p.w,
-              height: p.h,
-              background: p.color,
-              ["--cx"]: `${p.cx}px`,
-              ["--cy"]: `${p.cy}px`,
-              animation: `confetti-fall 1.1s ${p.delay}s ease-out forwards`,
-            } as React.CSSProperties
-          }
-        />
-      ))}
-    </div>
-  );
-}
-
-type GameResult = "win" | "lose" | "draw";
-
-/**
- * Semi-transparent game-over overlay with play-again / replay / dismiss actions.
- * Mounts on game end and animates in; on dismiss it animates out before
- * unmounting. All motion collapses under `prefers-reduced-motion`.
- * In local two-player games `pvpWinner` (1 = black, 2 = white) replaces the
- * win/lose themes with colour-based ones.
- */
-function GameOverOverlay({
-  open,
-  result,
-  pvpWinner,
-  canReplay,
-  onPlayAgain,
-  onReplay,
-  onDismiss,
-}: {
-  open: boolean;
-  result: GameResult;
-  pvpWinner?: Player | null;
-  canReplay: boolean;
-  onPlayAgain: () => void;
-  onReplay: () => void;
-  onDismiss: () => void;
-}) {
-  const { t } = useTranslation();
-  const [render, setRender] = useState(open);
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setRender(true);
-      const r = requestAnimationFrame(() => setShow(true));
-      return () => cancelAnimationFrame(r);
-    }
-    setShow(false);
-    const tm = window.setTimeout(() => setRender(false), 260);
-    return () => window.clearTimeout(tm);
-  }, [open]);
-
-  if (!render) return null;
-
-  const pvpTheme =
-    pvpWinner === BLACK
-      ? {
-          Icon: Crown,
-          chip: "bg-stone-800 text-white",
-          title: t("overlay.blackWin"),
-          desc: t("overlay.pvpDesc", { winner: t("replay.black") }),
-        }
-      : {
-          Icon: Crown,
-          chip: "bg-white text-stone-700 border border-stone-200",
-          title: t("overlay.whiteWin"),
-          desc: t("overlay.pvpDesc", { winner: t("replay.white") }),
-        };
-  const theme =
-    pvpWinner != null && result !== "draw"
-      ? pvpTheme
-      : {
-          win: {
-            Icon: Trophy,
-            chip: "bg-amber-100 text-amber-600",
-            title: t("overlay.win"),
-            desc: t("overlay.winDesc"),
-          },
-          lose: {
-            Icon: Sword,
-            chip: "bg-rose-100 text-rose-600",
-            title: t("overlay.lose"),
-            desc: t("overlay.loseDesc"),
-          },
-          draw: {
-            Icon: Circle,
-            chip: "bg-sky-100 text-sky-600",
-            title: t("overlay.draw"),
-            desc: t("overlay.drawDesc"),
-          },
-        }[result];
-  const Icon = theme.Icon;
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={theme.title}
-      className={cn(
-        "absolute inset-0 z-30 flex items-center justify-center p-4 transition-opacity duration-300",
-        show ? "opacity-100" : "opacity-0"
-      )}
-    >
-      <button
-        aria-label={t("overlay.backToMenu")}
-        tabIndex={-1}
-        onClick={onDismiss}
-        className="absolute inset-0 cursor-default bg-black/55 backdrop-blur-[3px]"
-      />
-      <div
-        className={cn(
-          "relative flex w-full max-w-[19rem] flex-col items-center gap-4 rounded-3xl border border-white/60 bg-white/90 px-6 py-7 text-center shadow-[var(--shadow-float)] backdrop-blur-xl transition-all duration-300",
-          show
-            ? "scale-100 opacity-100 translate-y-0"
-            : "scale-95 opacity-0 translate-y-3"
-        )}
-      >
-        <span
-          className={cn(
-            "flex h-16 w-16 animate-pop-in items-center justify-center rounded-full",
-            theme.chip
-          )}
-        >
-          <Icon className="h-8 w-8" />
-        </span>
-        <div className="space-y-1">
-          <h2 className="text-2xl font-extrabold tracking-tight text-stone-800">
-            {theme.title}
-          </h2>
-          <p className="text-sm text-stone-500">{theme.desc}</p>
-        </div>
-        <div className="mt-1 flex w-full flex-col gap-2">
-          <Button onClick={onPlayAgain} className="w-full gap-1.5">
-            <RotateCcw className="h-4 w-4" /> {t("overlay.playAgain")}
-          </Button>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={onReplay}
-              disabled={!canReplay}
-              className="flex-1 gap-1.5"
-            >
-              <Film className="h-4 w-4" /> {t("overlay.replay")}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={onDismiss}
-              className="flex-1 gap-1.5"
-            >
-              <Home className="h-4 w-4" /> {t("overlay.backToMenu")}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { BLACK, WHITE } from "@/lib/gomoku/types";
+import { coordName } from "@/lib/gomoku/coords";
 
 const DIFFICULTIES: { id: Difficulty; icon: LucideIcon }[] = [
   { id: "easy", icon: Dices },
@@ -290,107 +57,6 @@ const DIFFICULTIES: { id: Difficulty; icon: LucideIcon }[] = [
   { id: "hard", icon: Sword },
   { id: "master", icon: Crown },
 ];
-
-/**
- * Floating transport bar rendered on top of the board while replaying.
- * Gives the board itself first-class quick controls (prev / play / next /
- * jump / exit) so leaving or scrubbing a replay never requires hunting for
- * the side-panel button. Touch targets stay ≥ 36px for mobile.
- */
-function ReplayQuickBar({ replay }: { replay: UseReplayReturn }) {
-  const { t } = useTranslation();
-  const playing = replay.mode === "replaying-playing";
-  const atStart = replay.currentStep === 0;
-  const atEnd = replay.currentStep >= replay.N;
-
-  const base =
-    "flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 disabled:pointer-events-none disabled:opacity-30";
-  const idle = `${base} hover:bg-white/15`;
-  const exit = `${base} hover:bg-rose-500/80`;
-
-  return (
-    <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2">
-      <div
-        role="toolbar"
-        aria-label={t("replay.mode")}
-        className="flex items-center gap-0.5 rounded-full border border-white/25 bg-black/70 px-1.5 py-1 shadow-[var(--shadow-float)] backdrop-blur-md"
-      >
-        <button
-          title={t("replay.first")}
-          aria-label={t("replay.first")}
-          disabled={atStart}
-          onClick={() => replay.goTo(0)}
-          className={idle}
-        >
-          <SkipBack className="h-4 w-4" />
-        </button>
-        <button
-          title={t("replay.prev")}
-          aria-label={t("replay.prev")}
-          disabled={atStart}
-          onClick={replay.stepBack}
-          className={idle}
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <button
-          title={
-            playing
-              ? t("replay.pause")
-              : atEnd
-              ? t("replay.replayAgain")
-              : t("replay.play")
-          }
-          aria-label={
-            playing
-              ? t("replay.pause")
-              : atEnd
-              ? t("replay.replayAgain")
-              : t("replay.play")
-          }
-          onClick={replay.togglePlay}
-          aria-pressed={playing}
-          className={`${base} mx-0.5 bg-orange-500 hover:bg-orange-400`}
-        >
-          {playing ? (
-            <Pause className="h-4 w-4" />
-          ) : (
-            <Play className="h-4 w-4 translate-x-[1px]" />
-          )}
-        </button>
-        <button
-          title={t("replay.next")}
-          aria-label={t("replay.next")}
-          disabled={atEnd}
-          onClick={replay.stepForward}
-          className={idle}
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
-        <button
-          title={t("replay.last")}
-          aria-label={t("replay.last")}
-          disabled={atEnd}
-          onClick={() => replay.goTo(replay.N)}
-          className={idle}
-        >
-          <SkipForward className="h-4 w-4" />
-        </button>
-
-        <span aria-hidden className="mx-1 h-5 w-px bg-white/25" />
-
-        <button
-          title={t("replay.exitReplay")}
-          aria-label={t("replay.exitReplay")}
-          onClick={replay.exitReplay}
-          className={exit}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function diffSelectedClass(id: Difficulty): string {
   switch (id) {
@@ -420,6 +86,7 @@ export default function App() {
     difficulty,
     humanColor,
     thinking,
+    hover,
     stats,
     muted,
     mmss,
@@ -444,7 +111,7 @@ export default function App() {
 
   const isPvP = mode === "pvp";
 
-  const [par, setPar] = useState({ x: 0, y: 0 });
+  const par = useParallax();
   const [egg, setEgg] = useState(false);
   const [boardMounted, setBoardMounted] = useState(false);
   const [viewMode, setViewMode] = useViewMode();
@@ -495,17 +162,6 @@ export default function App() {
     if (status === "playing") setOverlayClosed(false);
   }, [status]);
 
-  // ---- parallax (no-op on touch / reduced motion) ----
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const x = e.clientX / window.innerWidth - 0.5;
-      const y = e.clientY / window.innerHeight - 0.5;
-      setPar({ x, y });
-    };
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
-  }, []);
-
   // ---- replay keyboard shortcuts (capture phase so we can also shield the
   //      global Ctrl/Cmd+Z undo while the read-only replay is open) ----
   const {
@@ -520,11 +176,7 @@ export default function App() {
     if (!isReplay) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)
-      )
-        return; // never hijack typing (e.g. the export filename input)
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return; // never hijack typing (e.g. the export filename input)
       if (exportOpen) return; // dialog owns the keyboard while open
       if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
         // replay is read-only: block the global undo shortcut
@@ -563,8 +215,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [isReplay, exportOpen, rStepBack, rStepForward, rTogglePlay, rExit, rGoTo, rN]);
 
-  const celebrate =
-    (status === "black_win" || status === "white_win") && winner === humanColor;
+  const celebrate = (status === "black_win" || status === "white_win") && winner === humanColor;
 
   const triggerEgg = () => {
     setEgg(true);
@@ -578,13 +229,11 @@ export default function App() {
   };
 
   const statusText = useMemo(() => {
-    if (status === "draw")
-      return { label: t("status.draw"), tone: "secondary" as const };
+    if (status === "draw") return { label: t("status.draw"), tone: "secondary" as const };
     if (status === "black_win" || status === "white_win") {
       if (isPvP)
         return {
-          label:
-            winner === BLACK ? t("status.blackWin") : t("status.whiteWin"),
+          label: winner === BLACK ? t("status.blackWin") : t("status.whiteWin"),
           tone: "default" as const,
         };
       return {
@@ -610,10 +259,10 @@ export default function App() {
     status === "draw"
       ? "draw"
       : status === "black_win" || status === "white_win"
-      ? winner === humanColor
-        ? "win"
-        : "lose"
-      : null;
+        ? winner === humanColor
+          ? "win"
+          : "lose"
+        : null;
   const showOverlay = !isReplay && gameResult !== null && !overlayClosed;
 
   const streakPct = Math.min(stats.streak, 5) / 5;
@@ -656,8 +305,7 @@ export default function App() {
                 onClick={triggerEgg}
                 className="cursor-pointer text-2xl font-bold tracking-tight text-stone-800 transition-transform hover:scale-[1.02] active:scale-95"
               >
-                {t("header.title")}{" "}
-                <span className="text-gradient">{t("header.brand")}</span>
+                {t("header.title")} <span className="text-gradient">{t("header.brand")}</span>
               </h1>
               <p className="mt-0.5 text-sm text-stone-500">{t("header.subtitle")}</p>
             </div>
@@ -674,7 +322,7 @@ export default function App() {
                 <Circle
                   className={cn(
                     "h-3.5 w-3.5 fill-current",
-                    currentPlayer === BLACK ? "text-stone-800" : "text-white"
+                    currentPlayer === BLACK ? "text-stone-800" : "text-white",
                   )}
                 />
               ) : null}
@@ -710,7 +358,7 @@ export default function App() {
             <div
               className={cn(
                 "relative aspect-square w-full transition-all duration-700",
-                boardMounted ? "opacity-100 scale-100" : "opacity-0 scale-95"
+                boardMounted ? "opacity-100 scale-100" : "opacity-0 scale-95",
               )}
             >
               <GameBoard
@@ -793,41 +441,42 @@ export default function App() {
                 <Circle
                   className={cn(
                     "h-3.5 w-3.5 fill-current",
-                    currentPlayer === BLACK ? "text-stone-800" : "text-white"
+                    currentPlayer === BLACK ? "text-stone-800" : "text-white",
                   )}
                 />
                 <span className="font-medium">
                   {isReplay
                     ? t("board.replayReadonly")
                     : interactive
-                    ? isPvP
-                      ? t("status.pvpTurn", {
-                          side:
-                            currentPlayer === BLACK
-                              ? t("replay.black")
-                              : t("replay.white"),
-                        })
-                      : t("board.yourTurn")
-                    : thinking
-                    ? t("board.thinking")
-                    : status === "playing"
-                    ? t("board.aiTurn")
-                    : ""}
+                      ? isPvP
+                        ? t("status.pvpTurn", {
+                            side: currentPlayer === BLACK ? t("replay.black") : t("replay.white"),
+                          })
+                        : t("board.yourTurn")
+                      : thinking
+                        ? t("board.thinking")
+                        : status === "playing"
+                          ? t("board.aiTurn")
+                          : ""}
                 </span>
+                {/* live coordinate readout for the pointed intersection */}
+                {!isReplay && hover && status === "playing" && (
+                  <span
+                    title={t("board.coordTitle")}
+                    className="rounded-md bg-stone-100 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-stone-700"
+                  >
+                    {coordName(hover.x, hover.y)}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 text-stone-500">
                 <span>
-                  {t("board.moves")}{" "}
-                  <b className="text-stone-800">{moveCount}</b>
+                  {t("board.moves")} <b className="text-stone-800">{moveCount}</b>
                 </span>
                 <span>
-                  {t("board.time")}{" "}
-                  <b className="tabular-nums text-stone-800">{mmss}</b>
+                  {t("board.time")} <b className="tabular-nums text-stone-800">{mmss}</b>
                 </span>
-                <span
-                  title={t("board.hint")}
-                  className="cursor-help text-stone-400"
-                >
+                <span title={t("board.hint")} className="cursor-help text-stone-400">
                   ?
                 </span>
               </div>
@@ -841,9 +490,7 @@ export default function App() {
             <Card interactive className="glass">
               <CardHeader className="p-5 pb-3">
                 <CardTitle className="text-base">{t("difficulty.title")}</CardTitle>
-                <CardDescription className="text-xs">
-                  {t("difficulty.desc")}
-                </CardDescription>
+                <CardDescription className="text-xs">{t("difficulty.desc")}</CardDescription>
               </CardHeader>
               <CardContent className="p-5 pt-0">
                 {isPvP ? (
@@ -881,7 +528,7 @@ export default function App() {
                             "group flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300",
                             isSel
                               ? diffSelectedClass(d.id)
-                              : "border-stone-200 bg-white/70 text-stone-600 hover:bg-stone-50"
+                              : "border-stone-200 bg-white/70 text-stone-600 hover:bg-stone-50",
                           )}
                         >
                           <span className="flex items-center gap-1.5 text-sm font-semibold">
@@ -891,7 +538,7 @@ export default function App() {
                           <span
                             className={cn(
                               "text-[11px] leading-tight",
-                              isSel ? "opacity-80" : "text-stone-400"
+                              isSel ? "opacity-80" : "text-stone-400",
                             )}
                           >
                             {t(`difficulty.${d.id}.hint`)}
@@ -921,159 +568,145 @@ export default function App() {
                 />
               </div>
             ) : (
-            <Card interactive className="glass">
-              <CardHeader className="p-5 pb-3">
-                <CardTitle className="text-base">{t("match.title")}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 p-5 pt-0">
-                {/* game mode: vs AI or local two-player */}
-                <div
-                  role="radiogroup"
-                  aria-label={t("match.mode")}
-                  className="flex gap-2"
-                >
-                  <Button
-                    variant={mode === "ai" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 gap-1.5"
-                    aria-pressed={mode === "ai"}
-                    title={t("match.modeAiTitle")}
-                    onClick={() => switchMode("ai")}
-                  >
-                    <Bot className="h-4 w-4" /> {t("match.modeAi")}
-                  </Button>
-                  <Button
-                    variant={mode === "pvp" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 gap-1.5"
-                    aria-pressed={mode === "pvp"}
-                    title={t("match.modePvpTitle")}
-                    onClick={() => switchMode("pvp")}
-                  >
-                    <Users className="h-4 w-4" /> {t("match.modePvp")}
-                  </Button>
-                </div>
-                {!isPvP && (
-                  <div className="flex gap-2">
+              <Card interactive className="glass">
+                <CardHeader className="p-5 pb-3">
+                  <CardTitle className="text-base">{t("match.title")}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3 p-5 pt-0">
+                  {/* game mode: vs AI or local two-player */}
+                  <div role="radiogroup" aria-label={t("match.mode")} className="flex gap-2">
                     <Button
-                      variant={humanColor === BLACK ? "default" : "outline"}
+                      variant={mode === "ai" ? "default" : "outline"}
                       size="sm"
                       className="flex-1 gap-1.5"
-                      aria-pressed={humanColor === BLACK}
-                      onClick={() => setHumanColor(BLACK)}
+                      aria-pressed={mode === "ai"}
+                      title={t("match.modeAiTitle")}
+                      onClick={() => switchMode("ai")}
                     >
-                      <User className="h-4 w-4" /> {t("match.humanFirst")}
+                      <Bot className="h-4 w-4" /> {t("match.modeAi")}
                     </Button>
                     <Button
-                      variant={humanColor === WHITE ? "default" : "outline"}
+                      variant={mode === "pvp" ? "default" : "outline"}
                       size="sm"
                       className="flex-1 gap-1.5"
-                      aria-pressed={humanColor === WHITE}
-                      onClick={() => setHumanColor(WHITE)}
+                      aria-pressed={mode === "pvp"}
+                      title={t("match.modePvpTitle")}
+                      onClick={() => switchMode("pvp")}
                     >
-                      <Bot className="h-4 w-4" /> {t("match.aiFirst")}
+                      <Users className="h-4 w-4" /> {t("match.modePvp")}
                     </Button>
                   </div>
-                )}
-                <div
-                  role="group"
-                  aria-label={t("match.view")}
-                  className="flex gap-2"
-                >
-                  <Button
-                    variant={viewMode === "2d" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 gap-1.5"
-                    aria-pressed={viewMode === "2d"}
-                    title={t("match.view2dTitle")}
-                    onClick={() => switchView("2d")}
-                  >
-                    <Grid3x3 className="h-4 w-4" /> {t("match.view2d")}
-                  </Button>
-                  <Button
-                    variant={viewMode === "3d" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 gap-1.5"
-                    aria-pressed={viewMode === "3d"}
-                    title={t("match.view3dTitle")}
-                    onClick={() => switchView("3d")}
-                  >
-                    <Box className="h-4 w-4" /> {t("match.view3d")}
-                  </Button>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={restart} className="gap-1.5">
-                    <RotateCcw className="h-4 w-4" /> {t("match.restart")}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={undo}
-                    disabled={!canUndo}
-                    className="gap-1.5"
-                  >
-                    <Undo2 className="h-4 w-4" /> {t("match.undo")}
-                  </Button>
-                </div>
-                {/* hint: master-strength suggestion for the side to move */}
-                <Button
-                  variant="secondary"
-                  onClick={requestHint}
-                  disabled={
-                    !displayInteractive || hintsLeft <= 0 || hintLoading
-                  }
-                  title={t("match.hintTitle", { count: hintsLeft })}
-                  className="w-full gap-1.5"
-                >
-                  {hintLoading ? (
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
-                  ) : (
-                    <Lightbulb className="h-4 w-4 text-emerald-600" />
+                  {!isPvP && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant={humanColor === BLACK ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1 gap-1.5"
+                        aria-pressed={humanColor === BLACK}
+                        onClick={() => setHumanColor(BLACK)}
+                      >
+                        <User className="h-4 w-4" /> {t("match.humanFirst")}
+                      </Button>
+                      <Button
+                        variant={humanColor === WHITE ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1 gap-1.5"
+                        aria-pressed={humanColor === WHITE}
+                        onClick={() => setHumanColor(WHITE)}
+                      >
+                        <Bot className="h-4 w-4" /> {t("match.aiFirst")}
+                      </Button>
+                    </div>
                   )}
-                  {hintLoading
-                    ? t("match.hintLoading")
-                    : `${t("match.hint")} · ${
-                        hintsLeft > 0
-                          ? t("match.hintsLeft", { count: hintsLeft })
-                          : t("match.hintsNone")
-                      }`}
-                </Button>
-                <Separator />
-                <div className="grid grid-cols-2 gap-2">
+                  <div role="group" aria-label={t("match.view")} className="flex gap-2">
+                    <Button
+                      variant={viewMode === "2d" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 gap-1.5"
+                      aria-pressed={viewMode === "2d"}
+                      title={t("match.view2dTitle")}
+                      onClick={() => switchView("2d")}
+                    >
+                      <Grid3x3 className="h-4 w-4" /> {t("match.view2d")}
+                    </Button>
+                    <Button
+                      variant={viewMode === "3d" ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 gap-1.5"
+                      aria-pressed={viewMode === "3d"}
+                      title={t("match.view3dTitle")}
+                      onClick={() => switchView("3d")}
+                    >
+                      <Box className="h-4 w-4" /> {t("match.view3d")}
+                    </Button>
+                  </div>
+                  <Separator />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={restart} className="gap-1.5">
+                      <RotateCcw className="h-4 w-4" /> {t("match.restart")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={undo}
+                      disabled={!canUndo}
+                      className="gap-1.5"
+                    >
+                      <Undo2 className="h-4 w-4" /> {t("match.undo")}
+                    </Button>
+                  </div>
+                  {/* hint: master-strength suggestion for the side to move */}
                   <Button
                     variant="secondary"
-                    onClick={replay.enterReplay}
-                    disabled={!replay.canEnterReplay}
-                    title={
-                      thinking
-                        ? t("match.thinking")
-                        : moveCount === 0
-                        ? t("match.replayNone")
-                        : t("match.replayThis")
-                    }
-                    className={cn(
-                      "gap-1.5",
-                      status !== "playing" &&
-                        moveCount > 0 &&
-                        "ring-2 ring-orange-300"
+                    onClick={requestHint}
+                    disabled={!displayInteractive || hintsLeft <= 0 || hintLoading}
+                    title={t("match.hintTitle", { count: hintsLeft })}
+                    className="w-full gap-1.5"
+                  >
+                    {hintLoading ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+                    ) : (
+                      <Lightbulb className="h-4 w-4 text-emerald-600" />
                     )}
-                  >
-                    <Film className="h-4 w-4" /> {t("match.replay")}
+                    {hintLoading
+                      ? t("match.hintLoading")
+                      : `${t("match.hint")} · ${
+                          hintsLeft > 0
+                            ? t("match.hintsLeft", { count: hintsLeft })
+                            : t("match.hintsNone")
+                        }`}
                   </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setExportOpen(true)}
-                    disabled={moveCount === 0}
-                    title={
-                      moveCount === 0 ? t("match.exportNone") : t("match.export")
-                    }
-                    className="gap-1.5"
-                  >
-                    <Download className="h-4 w-4" /> {t("match.export")}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                  <Separator />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={replay.enterReplay}
+                      disabled={!replay.canEnterReplay}
+                      title={
+                        thinking
+                          ? t("match.thinking")
+                          : moveCount === 0
+                            ? t("match.replayNone")
+                            : t("match.replayThis")
+                      }
+                      className={cn(
+                        "gap-1.5",
+                        status !== "playing" && moveCount > 0 && "ring-2 ring-orange-300",
+                      )}
+                    >
+                      <Film className="h-4 w-4" /> {t("match.replay")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setExportOpen(true)}
+                      disabled={moveCount === 0}
+                      title={moveCount === 0 ? t("match.exportNone") : t("match.export")}
+                      className="gap-1.5"
+                    >
+                      <Download className="h-4 w-4" /> {t("match.export")}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* stats & achievements — stays live during replay: the read-only
@@ -1095,12 +728,7 @@ export default function App() {
                       key={s.k}
                       className="rounded-xl bg-white/70 py-2 shadow-[var(--shadow-soft)]"
                     >
-                      <div
-                        className={cn(
-                          "text-lg font-bold tabular-nums",
-                          s.c
-                        )}
-                      >
+                      <div className={cn("text-lg font-bold tabular-nums", s.c)}>
                         <AnimatedNumber value={s.v} />
                       </div>
                       <div className="text-xs text-stone-400">{s.k}</div>
@@ -1112,9 +740,7 @@ export default function App() {
                 <div>
                   <div className="mb-1 flex items-center justify-between text-xs text-stone-500">
                     <span>{t("stats.streak")}</span>
-                    <span className="font-semibold text-orange-600">
-                      {stats.streak} / 5
-                    </span>
+                    <span className="font-semibold text-orange-600">{stats.streak} / 5</span>
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-stone-200/70">
                     <div
@@ -1138,15 +764,13 @@ export default function App() {
                           "flex flex-col items-center gap-1 rounded-2xl border p-2.5 text-center transition-all duration-300 hover:-translate-y-0.5",
                           earned
                             ? cn("border-transparent", tone.bg, tone.glow)
-                            : "border-stone-200 bg-stone-50/80 opacity-60 grayscale"
+                            : "border-stone-200 bg-stone-50/80 opacity-60 grayscale",
                         )}
                       >
                         <span
                           className={cn(
                             "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
-                            earned
-                              ? cn(tone.bg, tone.text)
-                              : "bg-stone-200 text-stone-400"
+                            earned ? cn(tone.bg, tone.text) : "bg-stone-200 text-stone-400",
                           )}
                         >
                           <Icon className="h-5 w-5" />
@@ -1154,7 +778,7 @@ export default function App() {
                         <span
                           className={cn(
                             "text-[11px] font-medium leading-tight",
-                            earned ? "text-stone-700" : "text-stone-400"
+                            earned ? "text-stone-700" : "text-stone-400",
                           )}
                         >
                           {t(`achievements.${a.id}.title`)}
@@ -1187,9 +811,7 @@ export default function App() {
           variant="ghost"
           className="h-10 w-10"
           aria-label={t("match.mode")}
-          title={
-            mode === "ai" ? t("match.modePvpTitle") : t("match.modeAiTitle")
-          }
+          title={mode === "ai" ? t("match.modePvpTitle") : t("match.modeAiTitle")}
           onClick={() => switchMode(mode === "ai" ? "pvp" : "ai")}
         >
           {mode === "ai" ? <Bot className="h-4 w-4" /> : <Users className="h-4 w-4" />}
@@ -1244,8 +866,8 @@ export default function App() {
             thinking
               ? t("match.thinking")
               : moveCount === 0
-              ? t("match.replayNone")
-              : t("match.replay")
+                ? t("match.replayNone")
+                : t("match.replay")
           }
           disabled={!replay.canEnterReplay}
           onClick={replay.enterReplay}

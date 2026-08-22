@@ -1,13 +1,6 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Player,
-  Move,
-  GameStatus,
-  BLACK,
-  opponent,
-  validateMove,
-} from "@/lib/gomoku/types";
+import { Player, Move, GameStatus, BLACK, opponent, validateMove } from "@/lib/gomoku/types";
 import { getAIMove, getHintMove, type Difficulty } from "@/lib/gomoku/ai";
 import * as engine from "@/lib/gomoku/engine";
 import {
@@ -140,10 +133,7 @@ export function useGomoku(): UseGomoku {
   const pushToast = useCallback((t: Omit<ToastItem, "id">) => {
     const id = ++toastId.current;
     setToasts((prev) => [...prev, { ...t, id }]);
-    window.setTimeout(
-      () => setToasts((prev) => prev.filter((x) => x.id !== id)),
-      4200
-    );
+    window.setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 4200);
   }, []);
 
   const dismissToast = useCallback((id: number) => {
@@ -161,7 +151,7 @@ export function useGomoku(): UseGomoku {
         toneClass: `${tone.bg} ${tone.text}`,
       });
     },
-    [pushToast, t]
+    [pushToast, t],
   );
 
   // ---- apply a move (shared by human / AI) + clear any stale hint marker ----
@@ -185,7 +175,7 @@ export function useGomoku(): UseGomoku {
       }
       applyMove(m, gameRef.current.currentPlayer);
     },
-    [applyMove]
+    [applyMove],
   );
 
   // ---- AI turn: schedule exactly once per turn (no self-cancel bug) ----
@@ -193,9 +183,7 @@ export function useGomoku(): UseGomoku {
   // would cancel the in-flight timeout and deadlock the AI.
   useEffect(() => {
     const isAITurn =
-      modeRef.current === "ai" &&
-      game.status === "playing" &&
-      game.currentPlayer === aiColor;
+      modeRef.current === "ai" && game.status === "playing" && game.currentPlayer === aiColor;
     if (!isAITurn) {
       aiPendingRef.current = false;
       // BUG-QA-01 fix: switching 先手 mid-thinking cancels the AI timer (cleanup)
@@ -249,11 +237,7 @@ export function useGomoku(): UseGomoku {
     }
 
     const outcome: "win" | "loss" | "draw" =
-      game.status === "draw"
-        ? "draw"
-        : game.winner === humanColorRef.current
-        ? "win"
-        : "loss";
+      game.status === "draw" ? "draw" : game.winner === humanColorRef.current ? "win" : "loss";
     const res = recordResult(statsRef.current, {
       outcome,
       moves: game.moveCount,
@@ -282,8 +266,8 @@ export function useGomoku(): UseGomoku {
           }
           pushAchievementToast(a);
         },
-        250 + i * 350
-      )
+        250 + i * 350,
+      ),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.status, pushAchievementToast]);
@@ -309,7 +293,7 @@ export function useGomoku(): UseGomoku {
     () => () => {
       if (timerRef.current !== null) window.clearInterval(timerRef.current);
     },
-    []
+    [],
   );
 
   // ---- thinking sound ----
@@ -513,10 +497,7 @@ export function useGomoku(): UseGomoku {
     (isPvP || game.currentPlayer === humanColor);
   interactiveRef.current = interactive;
 
-  const canUndo =
-    game.status === "playing" &&
-    !thinking &&
-    game.history.length >= (isPvP ? 1 : 2);
+  const canUndo = game.status === "playing" && !thinking && game.history.length >= (isPvP ? 1 : 2);
 
   const mmss = useMemo(() => {
     const total = Math.floor(elapsedMs / 1000);

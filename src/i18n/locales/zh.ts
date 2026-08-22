@@ -34,6 +34,7 @@ export const zh = {
     moves: "手数",
     time: "用时",
     hint: "将鼠标移到棋盘交叉点，会显示半透明落子预览与橙色引导线",
+    coordTitle: "当前指向的交叉点坐标（列 A–O，行 1–15 自下而上）",
   },
   difficulty: {
     title: "难度",

@@ -1,12 +1,4 @@
-import {
-  Board,
-  Move,
-  Player,
-  GameStatus,
-  BLACK,
-  BOARD_SIZE,
-  createBoard,
-} from "./types";
+import { Board, Move, Player, GameStatus, BLACK, BOARD_SIZE, createBoard } from "./types";
 import type { GameState, HistoryEntry } from "./engine";
 
 /** One derived move of the finished/ongoing game, 1-based `index`. */

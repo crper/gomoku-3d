@@ -12,7 +12,7 @@ export const resources = {
 export const SUPPORTED_LANGS = ["zh", "en"] as const;
 export type Lang = (typeof SUPPORTED_LANGS)[number];
 
-i18n
+void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({

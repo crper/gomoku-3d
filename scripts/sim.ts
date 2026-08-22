@@ -1,6 +1,4 @@
 import {
-  Board,
-  Move,
   Player,
   BLACK,
   WHITE,
@@ -11,14 +9,22 @@ import {
 } from "../src/lib/gomoku/types";
 import { getAIMove } from "../src/lib/gomoku/ai";
 
-function playGame(a: Player, b: Player, da: "easy" | "medium" | "hard" | "master", db: "easy" | "medium" | "hard" | "master") {
+function playGame(
+  a: Player,
+  b: Player,
+  da: "easy" | "medium" | "hard" | "master",
+  db: "easy" | "medium" | "hard" | "master",
+) {
   const board = createBoard();
   let cur: Player = BLACK;
   let moves = 0;
   while (moves < 225) {
     const diff = cur === a ? da : db;
     const m = getAIMove(board, cur, diff);
-    if (!m) throw new Error(`getAIMove returned null at move ${moves} for player ${cur} (not a draw yet?)`);
+    if (!m)
+      throw new Error(
+        `getAIMove returned null at move ${moves} for player ${cur} (not a draw yet?)`,
+      );
     if (board[idx(m.x, m.y)] !== 0) throw new Error(`AI returned an occupied cell ${m.x},${m.y}`);
     board[idx(m.x, m.y)] = cur;
     if (checkWinFrom(board, m.x, m.y, cur)) {
@@ -31,7 +37,7 @@ function playGame(a: Player, b: Player, da: "easy" | "medium" | "hard" | "master
   throw new Error("game did not terminate within 225 moves (possible stall/loop)");
 }
 
-const combos: [("easy" | "medium" | "hard" | "master"), ("easy" | "medium" | "hard" | "master")][] = [
+const combos: ["easy" | "medium" | "hard" | "master", "easy" | "medium" | "hard" | "master"][] = [
   ["easy", "easy"],
   ["medium", "medium"],
   ["hard", "hard"],
