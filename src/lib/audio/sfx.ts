@@ -17,7 +17,8 @@ export type SfxEvent =
   | "thinking_start"
   | "thinking_end"
   | "undo"
-  | "unmute_tick";
+  | "unmute_tick"
+  | "hint";
 
 const STORAGE_KEY = "gomoku.audio.v1";
 
@@ -330,6 +331,11 @@ export function play(event: SfxEvent): void {
       case "unmute_tick":
         // short confirmation tick when sound returns from muted.
         blip(c, { type: "triangle", f0: 660, f1: 550, t0: t, dur: 0.06, a: 0.001, d: 0.03, peak: 0.12, lp: 5000 });
+        break;
+      case "hint":
+        // two-note rising chime: "here is an idea".
+        blip(c, { type: "sine", f0: 784, t0: t, dur: 0.18, a: 0.004, d: 0.08, peak: 0.28, lp: 6000 });
+        blip(c, { type: "sine", f0: 1175, t0: t + 0.1, dur: 0.26, a: 0.004, d: 0.1, peak: 0.26, lp: 7000 });
         break;
     }
   } catch {

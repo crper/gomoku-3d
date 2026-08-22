@@ -121,3 +121,15 @@ export function undo(state: GameState): GameState {
   const newHistory = h.slice(0, restoreIdx);
   return { ...restored, history: newHistory };
 }
+
+/**
+ * Revert exactly one ply (single stone). Used by local two-player mode where
+ * there is no AI round to roll back. No-op when the game is over or history
+ * is empty.
+ */
+export function undoOne(state: GameState): GameState {
+  if (state.history.length === 0 || state.status !== "playing") return state;
+  const h = state.history.slice();
+  const restored = h[h.length - 1];
+  return { ...restored, history: h.slice(0, h.length - 1) };
+}

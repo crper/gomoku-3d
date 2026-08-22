@@ -623,6 +623,52 @@ function LastMovePulse({ move, fading }: { move: Move; fading?: boolean }) {
 }
 
 /**
+ * fx-spec §4-style marker for the hint feature: a soft emerald beacon over the
+ * suggested intersection (breathing ring + static core). Reduced motion shows
+ * a static ring only. Purely visual — never intercepts pointer events.
+ */
+function HintMarker({ move }: { move: Move }) {
+  const ring = useRef<THREE.Mesh>(null);
+  const [wx, , wz] = gridToWorld(move.x, move.y);
+
+  useFrame(({ clock }) => {
+    if (!ring.current || REDUCED) return;
+    const t = (Math.sin(TAU * 0.8 * clock.elapsedTime) + 1) / 2; // 0..1
+    const s = 0.9 + t * 0.25;
+    ring.current.scale.set(s, s, 1);
+    (ring.current.material as THREE.MeshBasicMaterial).opacity = 0.35 + t * 0.3;
+  });
+
+  return (
+    <group>
+      <mesh
+        ref={ring}
+        position={[wx, 0.222, wz]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={3}
+      >
+        <ringGeometry args={[0.4, 0.56, 40]} />
+        <meshBasicMaterial
+          color="#10b981"
+          transparent
+          opacity={REDUCED ? 0.55 : 0.5}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh position={[wx, 0.22, wz]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
+        <circleGeometry args={[0.12, 24]} />
+        <meshBasicMaterial
+          color="#34d399"
+          transparent
+          opacity={REDUCED ? 0.7 : 0.65}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+/**
  * fx-spec §6: a very quiet breathing frame around the board rim while the AI
  * thinks. Four thin bars share a single material (their opacity is always in
  * sync). Calls `onFadedOut` when the 450ms exit envelope reaches zero so the
@@ -856,6 +902,8 @@ export interface GameBoardProps {
   thinking?: boolean;
   /** Explicit draw signal from the App layer (`status === "draw"`). */
   drawn?: boolean;
+  /** Suggested intersection from the hint feature; null hides the marker. */
+  hint?: Move | null;
 }
 
 function Scene({
@@ -870,6 +918,7 @@ function Scene({
   viewMode = "3d",
   thinking,
   drawn,
+  hint,
 }: GameBoardProps) {
   const [hover, setHover] = useState<Move | null>(null);
   // Explicit interaction policy while the camera tween runs: hover preview
@@ -1001,6 +1050,11 @@ function Scene({
       {/* §4.2 avoidance: never shown under a win, never fought with a same-cell hover */}
       {lastMove && !winLine && !hoverOnLastMove && (
         <LastMovePulse move={lastMove} fading={drawn} />
+      )}
+
+      {/* hint beacon: hidden once a stone lands on the suggested cell */}
+      {hint && board[idx(hint.x, hint.y)] === 0 && (
+        <HintMarker move={hint} />
       )}
 
       <HoverPreview

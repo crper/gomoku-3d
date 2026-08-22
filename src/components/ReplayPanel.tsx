@@ -36,6 +36,8 @@ const SPEEDS: { label: string; ms: number }[] = [
 export interface ReplayPanelProps {
   replay: UseReplayReturn;
   humanColor: Player;
+  /** Local two-player game: both sides are labelled as players. */
+  pvp?: boolean;
   muted: boolean;
   onToggleMute: () => void;
   viewMode: ViewMode;
@@ -49,6 +51,7 @@ export interface ReplayPanelProps {
 export default function ReplayPanel({
   replay,
   humanColor,
+  pvp = false,
   muted,
   onToggleMute,
   viewMode,
@@ -68,10 +71,11 @@ export default function ReplayPanel({
     ? t("replay.moveInfo", {
         step: currentStep,
         label: currentMove.player === BLACK ? t("replay.black") : t("replay.white"),
-        player:
-          currentMove.player === humanColor
-            ? t("replay.player")
-            : t("replay.computer"),
+        player: pvp
+          ? t("replay.player")
+          : currentMove.player === humanColor
+          ? t("replay.player")
+          : t("replay.computer"),
       }) + ` · (${currentMove.x}, ${currentMove.y})`
     : t("replay.opening");
 

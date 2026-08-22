@@ -21,14 +21,21 @@
 ## ✨ Features
 
 - **15×15 Gomoku (Five-in-a-Row)** rendered on an interactive 3D board.
-- **AI opponent** with four difficulties — Easy / Medium / Hard / **Master** (a depth-limited alpha-beta negamax search).
+- **Two game modes** — classic **vs AI** and local **two-player** pass-and-play on one screen.
+- **AI opponent** with four difficulties — Easy / Medium / Hard / **Master**:
+  - a shared tactical rules layer (take wins, block wins, create open fours, occupy fork points) for Medium and above;
+  - **Master** runs an alpha-beta negamax with beam pruning plus a **forced-move extension** that resolves entire four-chains beyond its nominal horizon, bounded by a time/node budget.
+- **Hint system** — ask the master engine for a suggested move (3 per game), shown as an emerald beacon on the board; works for either side in two-player mode.
 - **Dual view modes** — a locked 2D top-down board for clean play, and a free-orbit 3D view, with a smooth camera tween between them.
+- **On-board replay controls** — a floating transport bar (first / prev / play / next / last / exit) over the board plus a tappable replay badge, so exiting or scrubbing a replay never requires hunting through panels. `Esc` still works.
+- **No dead zones** — in two-player mode the difficulty card becomes an explanatory notice with a one-tap "switch to AI" action instead of a mysteriously disabled block; stats stay live during replay.
 - **Juicy animations** — stone drop-bounce with dust ripple, hover breathing preview, last-move pulse, victory line shimmer & hop, AI-thinking glow. All respect `prefers-reduced-motion`.
-- **Synthesized sound** via the Web Audio API — place / hover / undo / victory / defeat / achievement cues, with a mute toggle. Zero audio asset files.
-- **Game stats & achievements** persisted to `localStorage` (wins/losses/draws, win streaks, speed-win, beat-hard, etc.).
-- **Undo** a full round (your move + the AI's reply).
+- **Synthesized sound** via the Web Audio API — place / hover / undo / hint / victory / defeat / achievement cues, with a mute toggle. Zero audio asset files.
+- **Game stats & achievements** persisted to `localStorage` (wins/losses/draws, win streaks, speed-win, beat-hard, etc.). Two-player games are just-for-fun: stats stay untouched.
+- **Undo** — a full round vs the AI (your move + the AI's reply); a single ply in two-player mode.
 - **Replay** any game — step forward/back, jump to any move, play/pause with 0.5×–4× speed, draggable progress bar. A read-only scrubbing mode that leaves the live game untouched.
-- **Game-record export** — save a finished or in-progress game as **SGF** (the de-facto standard for Go/Gomoku/Renju software), **JSON**, or human-readable **TXT**, with a custom filename.
+- **Game-record export** — save a finished or in-progress game as **SGF** (the de-facto standard for Go/Gomoku/Renju software), **JSON**, or human-readable **TXT**, with a custom filename and correct player naming per mode.
+- **Drift-free game timer** based on wall-clock timestamps.
 - **Fully responsive** — desktop sidebar layout and a mobile bottom action bar, no overlap or overflow.
 - **Keyboard shortcuts** and screen-reader-friendly controls (ARIA labels, `aria-live` move info, focus-managed dialogs).
 
@@ -76,6 +83,9 @@ Tests are plain TypeScript under `scripts/` and run with [esbuild](https://esbui
 # Engine + AI logic (20 cases)
 ./node_modules/.bin/esbuild scripts/engine.test.ts --bundle --platform=node --format=esm --outfile=/tmp/e.mjs && node /tmp/e.mjs
 
+# AI tactics rules + hint engine (33 cases)
+./node_modules/.bin/esbuild scripts/tactics.test.ts --bundle --platform=node --format=esm --outfile=/tmp/t.mjs && node /tmp/t.mjs
+
 # AI strength matrix
 ./node_modules/.bin/esbuild scripts/strength.test.ts --bundle --platform=node --format=esm --outfile=/tmp/s.mjs && node /tmp/s.mjs
 
@@ -86,11 +96,15 @@ Tests are plain TypeScript under `scripts/` and run with [esbuild](https://esbui
 ./node_modules/.bin/esbuild scripts/sim.ts --bundle --platform=node --format=esm --outfile=/tmp/sim.mjs && node /tmp/sim.mjs
 ```
 
+`npm test` runs the first four suites in one go.
+
 ## 🎯 How to Play
 
 - Black moves first. Click any intersection to place your stone.
 - Connect **five** of your stones in a row (horizontally, vertically, or diagonally) to win.
-- Use the sidebar (desktop) or bottom bar (mobile) to switch difficulty, swap who plays first, toggle 2D/3D, undo, mute, replay, or export.
+- Pick a mode in the **Match** card: play the AI (choose who goes first and the difficulty) or switch to **two-player** and share the screen.
+- Stuck? Hit **Hint** — the engine suggests a move for the side to play, three times per game.
+- Use the sidebar (desktop) or bottom bar (mobile) to switch difficulty/mode, swap who plays first, toggle 2D/3D, undo, mute, replay, or export.
 
 ### Keyboard shortcuts (during replay)
 
@@ -108,19 +122,19 @@ src/
 ├── App.tsx                  # Layout, state wiring, replay/export integration
 ├── main.tsx                 # Entry
 ├── components/
-│   ├── GameBoard.tsx        # 3D board (R3F) + all stone/board animations
+│   ├── GameBoard.tsx        # 3D board (R3F) + all stone/board animations + hint beacon
 │   ├── ReplayPanel.tsx      # Replay transport controls
 │   ├── ExportDialog.tsx     # SGF/JSON/TXT export modal
 │   └── ui/                  # Hand-written shadcn/ui-style primitives
 ├── hooks/
-│   ├── useGomoku.ts         # Game state, AI scheduling, stats, sound
+│   ├── useGomoku.ts         # Game state, mode (AI/PvP), AI scheduling, hints, stats, sound
 │   ├── useReplay.ts         # Read-only replay state machine
 │   └── useViewMode.ts       # 2D/3D view persistence
 └── lib/
     ├── gomoku/
     │   ├── types.ts         # Board, Move, Player, win detection
-    │   ├── engine.ts        # Immutable game state + transitions
-    │   ├── ai.ts            # Heuristic + alpha-beta search
+    │   ├── engine.ts        # Immutable game state + transitions (round & single-ply undo)
+    │   ├── ai.ts            # Tactical rules + heuristic + alpha-beta search with threat extension
     │   ├── replay.ts        # Move derivation & board-at-step
     │   ├── export.ts        # SGF/JSON/TXT serialization + download
     │   └── stats.ts         # Stats & achievements model

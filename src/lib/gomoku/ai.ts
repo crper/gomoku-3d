@@ -83,26 +83,41 @@ export function evaluatePoint(
 ): number {
   let total = 0;
   for (const [dx, dy] of DIRS) {
-    let line = "";
-    for (let i = -4; i <= 4; i++) {
-      if (i === 0) {
-        line += "1";
-        continue;
-      }
-      const nx = x + dx * i;
-      const ny = y + dy * i;
-      if (!inBounds(nx, ny)) {
-        line += "2";
-      } else {
-        const s = board[idx(nx, ny)];
-        if (s === player) line += "1";
-        else if (s === 0) line += "0";
-        else line += "2";
-      }
-    }
-    total += bestPatternInLine(line);
+    total += bestPatternInLine(directionLine(board, x, y, dx, dy, player));
   }
   return total;
+}
+
+/**
+ * 9-char line window through (x, y) along (dx, dy), centred on a hypothetical
+ * `player` stone ('1'); '0' empty, '2' opponent/edge. No board mutation.
+ */
+function directionLine(
+  board: Board,
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+  player: Player
+): string {
+  let line = "";
+  for (let i = -4; i <= 4; i++) {
+    if (i === 0) {
+      line += "1";
+      continue;
+    }
+    const nx = x + dx * i;
+    const ny = y + dy * i;
+    if (!inBounds(nx, ny)) {
+      line += "2";
+    } else {
+      const s = board[idx(nx, ny)];
+      if (s === player) line += "1";
+      else if (s === 0) line += "0";
+      else line += "2";
+    }
+  }
+  return line;
 }
 
 function wouldWin(board: Board, m: Move, player: Player): boolean {
@@ -121,6 +136,97 @@ function moveScore(
   const offense = evaluatePoint(board, m.x, m.y, player);
   const defense = evaluatePoint(board, m.x, m.y, opponent(player));
   return offense + defWeight * defense;
+}
+
+/* ----------------------------------------------------------------------------
+ * Tactical analysis (rules layer shared by every tier ≥ medium).
+ * ------------------------------------------------------------------------- */
+
+/** Per-direction threat classes created by a hypothetical placement. */
+interface DirThreat {
+  /** directions that complete five immediately */
+  five: number;
+  /** directions that form an open four (.1111.) */
+  openFour: number;
+  /** directions that form a blocked-but-live four */
+  four: number;
+  /** directions that form an open three */
+  openThree: number;
+}
+
+/** Classify the threats `player` creates by playing at (x, y). Pure. */
+function classifyPlacement(
+  board: Board,
+  x: number,
+  y: number,
+  player: Player
+): DirThreat {
+  const t: DirThreat = { five: 0, openFour: 0, four: 0, openThree: 0 };
+  for (const [dx, dy] of DIRS) {
+    const s = bestPatternInLine(directionLine(board, x, y, dx, dy, player));
+    if (s >= FIVE) t.five++;
+    else if (s >= OPEN_FOUR) t.openFour++;
+    else if (s >= FOUR) t.four++;
+    else if (s >= OPEN_THREE) t.openThree++;
+  }
+  return t;
+}
+
+/** Weighted threat units: an open four counts double (two winning ends). */
+function threatUnits(t: DirThreat): number {
+  return t.five + 2 * t.openFour + t.four + t.openThree;
+}
+
+/**
+ * All cells where `player` completes five with their next stone. Synchronous
+ * mutate-restore probe on `board` (same discipline as `wouldWin`).
+ */
+export function immediateWinCells(board: Board, player: Player): Move[] {
+  const res: Move[] = [];
+  for (const m of getCandidateMoves(board)) {
+    if (wouldWin(board, m, player)) res.push(m);
+  }
+  return res;
+}
+
+/**
+ * A move that leaves ≥2 distinct immediate winning cells (open four or double
+ * four). The opponent's single reply cannot cover both — a guaranteed win on
+ * our next turn, provided the opponent has no winning cell right now (which
+ * the caller's earlier rules ensure).
+ */
+function guaranteedWinMove(
+  board: Board,
+  candidates: Move[],
+  player: Player
+): Move | null {
+  for (const m of candidates) {
+    board[idx(m.x, m.y)] = player;
+    const wins = immediateWinCells(board, player).length;
+    board[idx(m.x, m.y)] = 0;
+    if (wins >= 2) return m;
+  }
+  return null;
+}
+
+/**
+ * Fork points: cells where `player` would create ≥2 simultaneous threats
+ * (double open three, four + open three, …). The defender can only answer one
+ * per turn, so these usually must be occupied as they appear.
+ */
+function forkPoints(
+  board: Board,
+  candidates: Move[],
+  player: Player
+): Move[] {
+  const res: Move[] = [];
+  for (const m of candidates) {
+    const t = classifyPlacement(board, m.x, m.y, player);
+    // immediate wins are handled earlier; skip them here
+    if (t.five > 0) continue;
+    if (threatUnits(t) >= 2) res.push(m);
+  }
+  return res;
 }
 
 function greedy(
@@ -180,25 +286,25 @@ interface DifficultyConfig {
   searchDepth: number;
   candidateK: number;
   randomness: number;
-  threatForcing: boolean;
-  forkAware: boolean;
+  /** medium+: apply the tactical rules layer (win / fork / block forks). */
+  tactics: boolean;
 }
 
-/** Difficulty-driven tuning table. The "must win / must block" rules in
- *  `getAIMove` are always applied regardless of `threatForcing`. */
+/** Difficulty-driven tuning table. Rules 1–2 (take win / block win) always
+ *  apply, even on easy — only the tactical layer below is tier-gated. */
 const DIFFICULTY_CONFIG: Record<Difficulty, DifficultyConfig> = {
-  easy: { defWeight: 0.5, searchDepth: 0, candidateK: 4, randomness: 0.7, threatForcing: false, forkAware: false },
-  medium: { defWeight: 1.0, searchDepth: 1, candidateK: 8, randomness: 0.1, threatForcing: false, forkAware: false },
-  hard: { defWeight: 1.0, searchDepth: 2, candidateK: 14, randomness: 0.02, threatForcing: true, forkAware: false },
-  master: { defWeight: 1.05, searchDepth: 4, candidateK: 20, randomness: 0, threatForcing: true, forkAware: true },
+  easy: { defWeight: 0.5, searchDepth: 0, candidateK: 4, randomness: 0.7, tactics: false },
+  medium: { defWeight: 1.0, searchDepth: 1, candidateK: 8, randomness: 0.1, tactics: true },
+  hard: { defWeight: 1.0, searchDepth: 2, candidateK: 14, randomness: 0.02, tactics: true },
+  master: { defWeight: 1.05, searchDepth: 4, candidateK: 20, randomness: 0, tactics: true },
 };
 
 /* ----------------------------------------------------------------------------
- * Fork awareness (master only): localized, dimension-aligned double-threat
- * recognition. We count the *immediate winning threats* a posted move grants
- * (empty points that would complete five), on the same scale as `moveScore`,
- * instead of adding flat hundred-thousand-level global constants. This keeps the
- * evaluation on one coherent scale and makes the look-ahead strictly dominate.
+ * Master search: alpha-beta negamax with beam pruning + forced-move extension
+ * (VCF-style). Positions where either side threatens an immediate win are
+ * "forced": only the winning/blocking cells are legal-ish, and searching them
+ * does not consume depth. This lets the search resolve entire four-chains far
+ * beyond its nominal horizon while a node/time budget keeps it bounded.
  * ------------------------------------------------------------------------- */
 
 function now(): number {
@@ -209,7 +315,7 @@ const WIN = 1_000_000_000;
 
 // Leaf-evaluation weights, on the `moveScore` scale. Steep gaps make building a
 // four / open-four dominate small shape noise, so the search prefers forcing
-// lines — a dimension-aligned alternative to the old global fork constants.
+// lines.
 const T_WIN = 10_000_000; // immediate winning threat
 const T_OPEN_FOUR = 1_000_000;
 const T_FOUR = 100_000;
@@ -217,11 +323,20 @@ const T_OPEN_THREE = 10_000;
 const T_THREE = 1_000;
 const T_TWO = 100;
 
+/** Search budget shared across one master move computation. */
+interface Budget {
+  nodes: number;
+  maxNodes: number;
+  deadline: number;
+}
+
+function budgetExceeded(b: Budget): boolean {
+  return b.nodes >= b.maxNodes || now() > b.deadline;
+}
+
 /**
  * Threat potential of `player` on the current board: weighted shape value summed
- * over every candidate point (what `player` could build there). Counts fours,
- * open-threes and forks, giving the search a real positional sense instead of a
- * single best-move heuristic.
+ * over every candidate point (what `player` could build there).
  */
 function evalSide(board: Board, player: Player): number {
   let win = 0;
@@ -255,10 +370,49 @@ function evaluateBoard(board: Board, player: Player, defWeight: number): number 
 }
 
 /**
- * Alpha-beta negamax with beam pruning. Returns the value of the position from
- * the perspective of `player` (the side to move at this node). A win is returned
- * as `WIN`; a full board is a draw (0). `K` caps how many candidate moves are
- * expanded at each node so the search stays within the time budget.
+ * Build the move pool for one node. Forced positions (someone threatens an
+ * immediate win) restrict play to {our winning cells ∪ their winning cells}
+ * and extend the search (depth unchanged); quiet positions use the top-K
+ * beam and consume one ply.
+ */
+function nodePool(
+  board: Board,
+  player: Player,
+  defWeight: number,
+  K: number,
+  depth: number
+): { pool: Move[]; nextDepth: number } {
+  const opp = opponent(player);
+  const oppWins = immediateWinCells(board, opp);
+  if (oppWins.length > 0 || depth <= 0) {
+    // never evaluate a leaf while a win-in-1 exists for either side
+    const myWins = immediateWinCells(board, player);
+    if (oppWins.length > 0 || myWins.length > 0) {
+      const seen = new Set<number>();
+      const pool: Move[] = [];
+      for (const m of [...myWins, ...oppWins]) {
+        const k = idx(m.x, m.y);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        pool.push(m);
+      }
+      // forced replies do not consume depth (threat extension)
+      return { pool, nextDepth: Math.max(0, depth) };
+    }
+    if (depth <= 0) return { pool: [], nextDepth: 0 }; // quiet leaf
+  }
+  const cands = getCandidateMoves(board);
+  const ranked = cands
+    .map((m) => ({ m, s: moveScore(board, m, player, defWeight) }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, K);
+  return { pool: ranked.map((e) => e.m), nextDepth: depth - 1 };
+}
+
+/**
+ * Alpha-beta negamax with beam pruning and forced-move extension. Returns the
+ * value of the position from the perspective of `player` (the side to move at
+ * this node). A win is returned as `WIN`; a full board is a draw (0).
  */
 function negamax(
   board: Board,
@@ -267,23 +421,35 @@ function negamax(
   depth: number,
   K: number,
   alpha: number,
-  beta: number
+  beta: number,
+  budget: Budget
 ): number {
-  if (depth === 0) return evaluateBoard(board, player, defWeight);
-  const cands = getCandidateMoves(board);
-  if (cands.length === 0) return 0; // full board -> draw
-  const ranked = cands
-    .map((m) => ({ m, s: moveScore(board, m, player, defWeight) }))
-    .sort((a, b) => b.s - a.s)
-    .slice(0, K);
+  budget.nodes++;
+  const { pool, nextDepth } = nodePool(board, player, defWeight, K, depth);
+  if (pool.length === 0) {
+    if (depth <= 0) return evaluateBoard(board, player, defWeight);
+    return 0; // full board -> draw
+  }
   let best = -Infinity;
-  for (const { m } of ranked) {
+  for (const m of pool) {
     board[idx(m.x, m.y)] = player;
     let val: number;
     if (checkWinFrom(board, m.x, m.y, player)) {
       val = WIN;
+    } else if (budgetExceeded(budget)) {
+      // budget blown mid-line: fall back to a static read of the child
+      val = -evaluateBoard(board, opponent(player), defWeight);
     } else {
-      val = -negamax(board, opponent(player), defWeight, depth - 1, K, -beta, -alpha);
+      val = -negamax(
+        board,
+        opponent(player),
+        defWeight,
+        nextDepth,
+        K,
+        -beta,
+        -alpha,
+        budget
+      );
     }
     board[idx(m.x, m.y)] = 0;
     if (val > best) best = val;
@@ -294,9 +460,9 @@ function negamax(
 }
 
 /**
- * Master search: top-K root candidates (by pattern score), bounded by an ~800ms
- * time budget, evaluated with an alpha-beta minimax that is strictly deeper than
- * the hard tier's 2-ply look-ahead, using a threat-counting leaf evaluation.
+ * Master search: top-K root candidates (by pattern score), bounded by an
+ * ~800ms / node budget, evaluated with an alpha-beta minimax whose forced-move
+ * extension resolves four-chains far beyond the nominal 5-ply horizon.
  *
  * Always returns a legal move; never null (callers guarantee non-empty input).
  */
@@ -308,9 +474,12 @@ function searchMaster(
   K: number
 ): Move {
   const opp = opponent(player);
-  const t0 = now();
-  const TIME_BUDGET = 800;
-  const DEPTH = 4; // plies after the root move -> a 5-ply search (hard is 2-ply)
+  const budget: Budget = {
+    nodes: 0,
+    maxNodes: 120_000,
+    deadline: now() + 800,
+  };
+  const DEPTH = 4; // plies after the root move; extensions go deeper
   const DEEP_K = 3; // beam width inside the tree
   const ROOT_K = Math.min(K, 8);
 
@@ -322,13 +491,22 @@ function searchMaster(
   let best = top[0].m;
   let bestScore = -Infinity;
   for (const { m } of top) {
-    if (now() - t0 > TIME_BUDGET) break;
+    if (budgetExceeded(budget)) break;
     board[idx(m.x, m.y)] = player;
     let val: number;
     if (checkWinFrom(board, m.x, m.y, player)) {
       val = WIN;
     } else {
-      val = -negamax(board, opp, defWeight, DEPTH, DEEP_K, -Infinity, Infinity);
+      val = -negamax(
+        board,
+        opp,
+        defWeight,
+        DEPTH,
+        DEEP_K,
+        -Infinity,
+        Infinity,
+        budget
+      );
     }
     board[idx(m.x, m.y)] = 0;
     if (val > bestScore) {
@@ -340,10 +518,14 @@ function searchMaster(
 }
 
 /**
- * Choose the AI's move for `player`. Guarantees: take an immediate win, and
- * block the opponent's immediate win (the "must" rules, kept for every tier).
- * Then search by difficulty. Returns `null` only when no candidate exists
- * (a full board → caller should declare a draw).
+ * Choose the AI's move for `player`. Guarantees, in order:
+ *   1. take an immediate win;
+ *   2. block the opponent's immediate win (best-scoring block when several);
+ *   3. (medium+) create an open four / double four — an unstoppable win next turn;
+ *   4. (medium+) make our own fork when the opponent cannot fork back;
+ *   5. (medium+) occupy the opponent's strongest fork point.
+ * Then the difficulty-specific search. Returns `null` only when no candidate
+ * exists (a full board → caller should declare a draw).
  */
 export function getAIMove(
   board: Board,
@@ -359,9 +541,20 @@ export function getAIMove(
   for (const m of candidates) {
     if (wouldWin(board, m, player)) return m;
   }
-  // 2. Block the opponent's immediate win.
-  for (const m of candidates) {
-    if (wouldWin(board, m, opp)) return m;
+  // 2. Block the opponent's immediate win. When several exist the position is
+  //    lost anyway — pick the block with the best own shape.
+  const oppWins = immediateWinCells(board, opp);
+  if (oppWins.length > 0) {
+    let best = oppWins[0];
+    let bestScore = -Infinity;
+    for (const m of oppWins) {
+      const s = moveScore(board, m, player, 1);
+      if (s > bestScore) {
+        bestScore = s;
+        best = m;
+      }
+    }
+    return best;
   }
 
   const cfg = DIFFICULTY_CONFIG[difficulty];
@@ -378,14 +571,59 @@ export function getAIMove(
     return top[Math.floor(Math.random() * top.length)].m;
   }
 
+  // ---- tactical rules layer ----
+
+  // 3. Create an open four / double four → win next turn, unstoppable.
+  const myGuaranteed = guaranteedWinMove(board, candidates, player);
+  if (myGuaranteed) return myGuaranteed;
+
+  const myForks = forkPoints(board, candidates, player);
+  const oppForks = forkPoints(board, candidates, opp);
+
+  // master keeps the deep search in charge: instead of blindly occupying the
+  // opponent's fork point, restrict the root pool to defensive blocks plus our
+  // own forcing replies and let alpha-beta pick — it may find a winning
+  // counter-chain a greedy block would miss.
+  if (difficulty === "master") {
+    let pool = candidates;
+    if (oppForks.length > 0) {
+      const keep = new Set<number>(
+        oppForks.map((m) => idx(m.x, m.y))
+      );
+      for (const m of candidates) {
+        const t = classifyPlacement(board, m.x, m.y, player);
+        if (t.five > 0 || t.openFour > 0 || t.four > 0 || t.openThree > 0) {
+          keep.add(idx(m.x, m.y));
+        }
+      }
+      pool = candidates.filter((m) => keep.has(idx(m.x, m.y)));
+      if (pool.length === 0) pool = oppForks;
+    }
+    return searchMaster(board, pool, player, cfg.defWeight, cfg.candidateK);
+  }
+
+  // 4. Make our own fork while the opponent cannot fork back (medium/hard).
+  if (myForks.length > 0 && oppForks.length === 0) {
+    return greedy(board, myForks, player, cfg.defWeight);
+  }
+  // 5. Occupy the opponent's strongest fork point (medium/hard).
+  if (oppForks.length > 0) {
+    return greedy(board, oppForks, player, cfg.defWeight);
+  }
+
   if (difficulty === "medium") {
     return greedy(board, candidates, player, cfg.defWeight);
   }
 
-  if (difficulty === "hard") {
-    return search2Ply(board, candidates, player, cfg.defWeight, cfg.candidateK);
-  }
+  // hard: 2-ply look-ahead on top of the rules layer.
+  return search2Ply(board, candidates, player, cfg.defWeight, cfg.candidateK);
+}
 
-  // master: fork-aware, time-bounded 3-ply minimax (strictly stronger than hard).
-  return searchMaster(board, candidates, player, cfg.defWeight, cfg.candidateK);
+/**
+ * Hint engine: the strongest available suggestion for `player` on `board`.
+ * Deterministic (master tier, zero randomness) so repeated calls on the same
+ * position agree.
+ */
+export function getHintMove(board: Board, player: Player): Move | null {
+  return getAIMove(board, player, "master");
 }

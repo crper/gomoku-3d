@@ -37,7 +37,11 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-export function buildMeta(game: GameState, humanColor: Player): ExportMeta {
+export function buildMeta(
+  game: GameState,
+  humanColor: Player,
+  pvp = false
+): ExportMeta {
   const result =
     game.status === "black_win"
       ? "B+W"
@@ -50,8 +54,8 @@ export function buildMeta(game: GameState, humanColor: Player): ExportMeta {
   const date = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   const humanIsBlack = humanColor === BLACK;
   return {
-    blackName: humanIsBlack ? "玩家" : "电脑",
-    whiteName: humanIsBlack ? "电脑" : "玩家",
+    blackName: pvp ? "黑方" : humanIsBlack ? "玩家" : "电脑",
+    whiteName: pvp ? "白方" : humanIsBlack ? "电脑" : "玩家",
     result,
     date,
     boardSize: BOARD_SIZE,

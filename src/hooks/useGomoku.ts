@@ -8,7 +8,7 @@ import {
   opponent,
   validateMove,
 } from "@/lib/gomoku/types";
-import { getAIMove, type Difficulty } from "@/lib/gomoku/ai";
+import { getAIMove, getHintMove, type Difficulty } from "@/lib/gomoku/ai";
 import * as engine from "@/lib/gomoku/engine";
 import {
   GameStats,
@@ -23,6 +23,30 @@ import { ACH_ICON } from "@/lib/achievementIcons";
 import { Sparkles, type LucideIcon } from "lucide-react";
 import { type ToastItem } from "@/components/ui/toast";
 
+/** "ai" = human vs computer; "pvp" = two humans sharing one screen. */
+export type GameMode = "ai" | "pvp";
+
+const MODE_KEY = "gomoku.mode.v1";
+const HINTS_PER_GAME = 3;
+
+function loadMode(): GameMode {
+  try {
+    const v = localStorage.getItem(MODE_KEY);
+    if (v === "pvp") return "pvp";
+  } catch {
+    /* ignore (privacy mode / SSR) */
+  }
+  return "ai";
+}
+
+function saveMode(m: GameMode): void {
+  try {
+    localStorage.setItem(MODE_KEY, m);
+  } catch {
+    /* ignore */
+  }
+}
+
 export interface UseGomoku {
   game: engine.GameState;
   board: engine.GameState["board"];
@@ -32,6 +56,7 @@ export interface UseGomoku {
   winLine: Move[] | null;
   winner: Player | null;
   moveCount: number;
+  mode: GameMode;
   difficulty: Difficulty;
   humanColor: Player;
   aiColor: Player;
@@ -44,6 +69,10 @@ export interface UseGomoku {
   toasts: ToastItem[];
   interactive: boolean;
   canUndo: boolean;
+  hintsLeft: number;
+  hintMove: Move | null;
+  hintLoading: boolean;
+  setMode: (m: GameMode) => void;
   setDifficulty: (d: Difficulty) => void;
   setHumanColor: (p: Player) => void;
   setHover: (m: Move | null) => void;
@@ -51,6 +80,7 @@ export interface UseGomoku {
   restart: () => void;
   undo: () => void;
   toggleMute: () => void;
+  requestHint: () => void;
   pushToast: (t: Omit<ToastItem, "id">) => void;
   dismissToast: (id: number) => void;
 }
@@ -58,6 +88,7 @@ export interface UseGomoku {
 export function useGomoku(): UseGomoku {
   const { t } = useTranslation();
   const [game, setGame] = useState<engine.GameState>(() => engine.createGame());
+  const [mode, setModeState] = useState<GameMode>(() => loadMode());
   const [difficulty, setDifficultyState] = useState<Difficulty>("medium");
   const [humanColor, setHumanColorState] = useState<Player>(BLACK);
   const [thinking, setThinking] = useState(false);
@@ -66,7 +97,11 @@ export function useGomoku(): UseGomoku {
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
   const [elapsedMs, setElapsedMs] = useState(0);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [hintsLeft, setHintsLeft] = useState(HINTS_PER_GAME);
+  const [hintMove, setHintMove] = useState<Move | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
 
+  const isPvP = mode === "pvp";
   const aiColor = opponent(humanColor);
 
   // ---- ref mirrors to avoid stale closures ----
@@ -80,13 +115,22 @@ export function useGomoku(): UseGomoku {
   difficultyRef.current = difficulty;
   const humanColorRef = useRef(humanColor);
   humanColorRef.current = humanColor;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const statsRef = useRef(stats);
   statsRef.current = stats;
   const thinkingRef = useRef(thinking);
   thinkingRef.current = thinking;
+  const interactiveRef = useRef(false);
+  const hintsLeftRef = useRef(hintsLeft);
+  hintsLeftRef.current = hintsLeft;
+  const hintLoadingRef = useRef(hintLoading);
+  hintLoadingRef.current = hintLoading;
   const aiPendingRef = useRef(false);
   const recordedRef = useRef(false);
   const timerRef = useRef<number | null>(null);
+  /** Wall-clock timestamp of the first move — drift-free elapsed time. */
+  const startedAtRef = useRef<number | null>(null);
   const toastId = useRef(0);
   const prevHoverRef = useRef<Move | null>(null);
   const lastHoverPlayRef = useRef(0);
@@ -120,15 +164,17 @@ export function useGomoku(): UseGomoku {
     [pushToast, t]
   );
 
-  // ---- apply a move (shared by human + AI) ----
+  // ---- apply a move (shared by human / AI) + clear any stale hint marker ----
   const applyMove = useCallback((m: Move, player: Player) => {
+    setHintMove(null);
     setGame((prev) => engine.placeStone(prev, m, player));
   }, []);
 
   const handlePlace = useCallback(
     (m: Move) => {
       if (statusRef.current !== "playing") return;
-      if (gameRef.current.currentPlayer !== humanColorRef.current) return;
+      if (modeRef.current === "ai" && gameRef.current.currentPlayer !== humanColorRef.current)
+        return;
       if (thinkingRef.current) return;
       if (!validateMove(gameRef.current.board, m)) return;
       try {
@@ -137,7 +183,7 @@ export function useGomoku(): UseGomoku {
       } catch {
         /* ignore */
       }
-      applyMove(m, humanColorRef.current);
+      applyMove(m, gameRef.current.currentPlayer);
     },
     [applyMove]
   );
@@ -146,7 +192,10 @@ export function useGomoku(): UseGomoku {
   // NOTE: `thinking` is intentionally NOT in the dependency array — including it
   // would cancel the in-flight timeout and deadlock the AI.
   useEffect(() => {
-    const isAITurn = game.status === "playing" && game.currentPlayer === aiColor;
+    const isAITurn =
+      modeRef.current === "ai" &&
+      game.status === "playing" &&
+      game.currentPlayer === aiColor;
     if (!isAITurn) {
       aiPendingRef.current = false;
       // BUG-QA-01 fix: switching 先手 mid-thinking cancels the AI timer (cleanup)
@@ -178,6 +227,7 @@ export function useGomoku(): UseGomoku {
   }, [game.status, game.currentPlayer, aiColor, applyMove]);
 
   // ---- record finished game into stats + fire result / achievement sounds ----
+  // PvP games are for fun: no stats, no achievements — just the result cue.
   useEffect(() => {
     if (game.status === "playing") {
       recordedRef.current = false;
@@ -185,6 +235,18 @@ export function useGomoku(): UseGomoku {
     }
     if (recordedRef.current) return;
     recordedRef.current = true;
+
+    if (modeRef.current === "pvp") {
+      window.setTimeout(() => {
+        try {
+          if (game.status === "draw") play("draw");
+          else play("victory");
+        } catch {
+          /* ignore */
+        }
+      }, 150);
+      return;
+    }
 
     const outcome: "win" | "loss" | "draw" =
       game.status === "draw"
@@ -226,19 +288,21 @@ export function useGomoku(): UseGomoku {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.status, pushAchievementToast]);
 
-  // ---- per-game timer ----
+  // ---- per-game timer (wall-clock based; a 1s interval alone drifts badly) ----
   useEffect(() => {
-    if (game.status !== "playing" || game.moveCount === 0) {
+    const running = game.status === "playing" && game.moveCount > 0;
+    if (!running) {
       if (timerRef.current !== null) {
         window.clearInterval(timerRef.current);
         timerRef.current = null;
       }
       return;
     }
+    if (startedAtRef.current === null) startedAtRef.current = Date.now();
     if (timerRef.current !== null) return; // already running
     timerRef.current = window.setInterval(() => {
-      setElapsedMs((e) => e + 1000);
-    }, 1000);
+      setElapsedMs(Date.now() - (startedAtRef.current ?? Date.now()));
+    }, 500);
   }, [game.status, game.moveCount]);
 
   useEffect(
@@ -280,6 +344,31 @@ export function useGomoku(): UseGomoku {
   }, [hover]);
 
   // ---- actions ----
+  const setMode = useCallback((m: GameMode) => {
+    try {
+      unlockAudio();
+      play("ui_click");
+    } catch {
+      /* ignore */
+    }
+    saveMode(m);
+    setModeState(m);
+    // semantics change mid-game would corrupt both modes — start fresh
+    setGame(engine.createGame());
+    setThinking(false);
+    aiPendingRef.current = false;
+    setHoverState(null);
+    setHintMove(null);
+    setHintsLeft(HINTS_PER_GAME);
+    recordedRef.current = false;
+    setElapsedMs(0);
+    startedAtRef.current = null;
+    if (timerRef.current !== null) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
   const setDifficulty = useCallback((d: Difficulty) => {
     try {
       unlockAudio();
@@ -312,8 +401,11 @@ export function useGomoku(): UseGomoku {
     setThinking(false);
     aiPendingRef.current = false;
     setHoverState(null);
+    setHintMove(null);
+    setHintsLeft(HINTS_PER_GAME);
     recordedRef.current = false;
     setElapsedMs(0);
+    startedAtRef.current = null;
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
@@ -323,14 +415,16 @@ export function useGomoku(): UseGomoku {
   const undo = useCallback(() => {
     if (thinkingRef.current) return;
     if (gameRef.current.status !== "playing") return;
-    if (gameRef.current.history.length < 2) return; // need a full round
+    const need = modeRef.current === "pvp" ? 1 : 2;
+    if (gameRef.current.history.length < need) return;
     try {
       unlockAudio();
       play("undo");
     } catch {
       /* ignore */
     }
-    setGame((prev) => engine.undo(prev));
+    setHintMove(null);
+    setGame((prev) => (modeRef.current === "pvp" ? engine.undoOne(prev) : engine.undo(prev)));
     recordedRef.current = false;
   }, []);
 
@@ -371,6 +465,34 @@ export function useGomoku(): UseGomoku {
     });
   }, []);
 
+  // ---- hint: master-strength suggestion for the side currently to move ----
+  const requestHint = useCallback(() => {
+    if (statusRef.current !== "playing") return;
+    if (!interactiveRef.current) return;
+    if (hintsLeftRef.current <= 0 || hintLoadingRef.current) return;
+    try {
+      unlockAudio();
+    } catch {
+      /* ignore */
+    }
+    hintLoadingRef.current = true;
+    setHintLoading(true);
+    // defer off the click handler so the spinner paints before we compute
+    window.setTimeout(() => {
+      const m = getHintMove(gameRef.current.board, gameRef.current.currentPlayer);
+      hintLoadingRef.current = false;
+      setHintLoading(false);
+      if (!m) return;
+      setHintsLeft((h) => Math.max(0, h - 1));
+      setHintMove(m);
+      try {
+        play("hint");
+      } catch {
+        /* ignore */
+      }
+    }, 60);
+  }, []);
+
   // ---- keyboard: Ctrl/Cmd+Z to undo ----
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -386,10 +508,16 @@ export function useGomoku(): UseGomoku {
   // ---- derived ----
   const interactive =
     game.status === "playing" &&
-    game.currentPlayer === humanColor &&
-    !thinking;
+    !thinking &&
+    !hintLoading &&
+    (isPvP || game.currentPlayer === humanColor);
+  interactiveRef.current = interactive;
+
   const canUndo =
-    game.history.length >= 2 && game.status === "playing" && !thinking;
+    game.status === "playing" &&
+    !thinking &&
+    game.history.length >= (isPvP ? 1 : 2);
+
   const mmss = useMemo(() => {
     const total = Math.floor(elapsedMs / 1000);
     const m = Math.floor(total / 60);
@@ -406,6 +534,7 @@ export function useGomoku(): UseGomoku {
     winLine: game.winLine,
     winner: game.winner,
     moveCount: game.moveCount,
+    mode,
     difficulty,
     humanColor,
     aiColor,
@@ -418,6 +547,10 @@ export function useGomoku(): UseGomoku {
     toasts,
     interactive,
     canUndo,
+    hintsLeft,
+    hintMove,
+    hintLoading,
+    setMode,
     setDifficulty,
     setHumanColor,
     setHover,
@@ -425,6 +558,7 @@ export function useGomoku(): UseGomoku {
     restart,
     undo,
     toggleMute,
+    requestHint,
     pushToast,
     dismissToast,
   };

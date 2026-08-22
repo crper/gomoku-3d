@@ -33,6 +33,8 @@ export interface ExportDialogProps {
   onClose: () => void;
   game: GameState;
   humanColor: Player;
+  /** Local two-player game: players are named 黑方/白方 instead of 玩家/电脑. */
+  pvp?: boolean;
   pushToast: (t: Omit<ToastItem, "id">) => void;
 }
 
@@ -41,6 +43,7 @@ export default function ExportDialog({
   onClose,
   game,
   humanColor,
+  pvp = false,
   pushToast,
 }: ExportDialogProps) {
   const [format, setFormat] = useState<ExportFormat>("sgf");
@@ -80,7 +83,7 @@ export default function ExportDialog({
     if (!canExport) return;
     try {
       const moves = deriveMoves(game);
-      const meta = buildMeta(game, humanColor);
+      const meta = buildMeta(game, humanColor, pvp);
       const { filename } = exportGame(moves, meta, format, name);
       pushToast({
         title: t("export.exported", { filename }),
