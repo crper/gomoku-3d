@@ -27,7 +27,7 @@
     "preview": "vp preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prepare": "vp config"
+    "test:sim": "esbuild scripts/sim.ts --bundle --platform=node --format=esm --outfile=/tmp/gomoku-sim.mjs && node /tmp/gomoku-sim.mjs"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.15",
