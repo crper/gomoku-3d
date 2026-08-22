@@ -19,12 +19,6 @@ export const zh = {
     aiTurn: "AI 回合",
     pvpTurn: "轮到{{side}}落子",
   },
-  banner: {
-    draw: "平局",
-    win: "你赢了 · 五子连珠！",
-    lose: "惜败 · 再来一局",
-    winLine: " · 已高亮胜利连线",
-  },
   board: {
     thinking: "AI 思考中",
     replayMode: "回放模式",
@@ -39,7 +33,6 @@ export const zh = {
   difficulty: {
     title: "难度",
     desc: "越高越强，AI 会尝试进攻与防守",
-    current: "当前：{{name}}",
     easy: { label: "简单", hint: "偶有失误" },
     medium: { label: "中等", hint: "稳健应对" },
     hard: { label: "困难", hint: "攻防兼备" },
@@ -156,7 +149,6 @@ export const zh = {
     master_win: { title: "无冕之王", desc: "在大师难度下击败 AI" },
   },
   lang: {
-    label: "语言",
     switch: "切换语言 / Switch language",
   },
 };

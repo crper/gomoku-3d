@@ -148,26 +148,6 @@ function earned(id: AchievementId, s: GameStats): boolean {
   }
 }
 
-/** A 0..1 fill used to render a subtle progress ring on locked badges. */
-export function achievementProgress(id: AchievementId, s: GameStats): number {
-  switch (id) {
-    case "first_win":
-      return Math.min(1, s.wins);
-    case "streak3":
-      return Math.min(1, s.bestStreak / 3);
-    case "streak5":
-      return Math.min(1, s.bestStreak / 5);
-    case "speed":
-      return s.fastestWinMoves !== null && s.fastestWinMoves <= 24 ? 1 : 0;
-    case "beat_hard":
-      return s.beatHard ? 1 : 0;
-    case "draw_master":
-      return Math.min(1, s.draws);
-    case "master_win":
-      return s.beatMaster ? 1 : 0;
-  }
-}
-
 export function isEarned(id: AchievementId, s: GameStats): boolean {
   return earned(id, s);
 }

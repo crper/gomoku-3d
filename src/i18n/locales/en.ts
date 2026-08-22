@@ -21,12 +21,6 @@ export const en: Resources = {
     aiTurn: "AI's turn",
     pvpTurn: "{{side}} to move",
   },
-  banner: {
-    draw: "Draw",
-    win: "You win · Five in a row!",
-    lose: "So close · Try again",
-    winLine: " · Winning line highlighted",
-  },
   board: {
     thinking: "AI thinking",
     replayMode: "Replay",
@@ -41,7 +35,6 @@ export const en: Resources = {
   difficulty: {
     title: "Difficulty",
     desc: "Higher is stronger — the AI attacks and defends",
-    current: "Current: {{name}}",
     easy: { label: "Easy", hint: "Occasional slips" },
     medium: { label: "Medium", hint: "Solid play" },
     hard: { label: "Hard", hint: "Attack & defend" },
@@ -158,7 +151,6 @@ export const en: Resources = {
     master_win: { title: "Crownless King", desc: "Beat the AI on Master" },
   },
   lang: {
-    label: "Language",
     switch: "切换语言 / Switch language",
   },
 };

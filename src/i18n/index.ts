@@ -10,7 +10,6 @@ export const resources = {
 } as const;
 
 export const SUPPORTED_LANGS = ["zh", "en"] as const;
-export type Lang = (typeof SUPPORTED_LANGS)[number];
 
 void i18n
   .use(LanguageDetector)

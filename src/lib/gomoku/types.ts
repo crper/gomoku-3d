@@ -34,18 +34,10 @@ export function inBounds(x: number, y: number): boolean {
   return x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE;
 }
 
-export function getStone(board: Board, x: number, y: number): Stone {
-  return board[idx(x, y)];
-}
-
 /** True if `move` is inside the board and currently empty. Reused by the
  *  engine and the UI layer to guard against illegal placements. */
 export function validateMove(board: Board, move: Move): boolean {
   return inBounds(move.x, move.y) && board[idx(move.x, move.y)] === EMPTY;
-}
-
-export function cloneBoard(board: Board): Board {
-  return board.slice();
 }
 
 const DIRS: ReadonlyArray<[number, number]> = [
